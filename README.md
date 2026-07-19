@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SustainBL Brand Frontend
 
-## Getting Started
+Frontend-only prototype for the SustainBL IEP parent journey. No backend — mock data for flow and design testing.
 
-First, run the development server:
+## Setup
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`.env` was copied from `sustainable-website` for later integration; this prototype does not call APIs yet.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Routes
 
-## Learn More
+| Path | Screen |
+|------|--------|
+| `/sign-in` | Sign in |
+| `/forgot-password` | Forgot password |
+| `/update-password` | Update password |
+| `/setup` | Onboarding step 1 — student |
+| `/setup/milestone` | Onboarding step 2 — meeting |
+| `/setup/documentation` | Onboarding step 3 — upload |
+| `/dashboard` | Home |
+| `/sustainbl/*` | SustainBL workspace (Timeline, Documents, Prep tabs only) |
+| `/meetings` | Meetings |
+| `/meetings/[id]` | Meeting detail |
+| `/follow-up` | Follow-up email draft |
+| `/reports` | Family PDF list |
+| `/reports/[id]` | PDF preview |
+| `/ask-copilot` | Ask Copilot |
+| `/advocate` | Advocate profile & booking |
+| `/settings` | Settings |
 
-To learn more about Next.js, take a look at the following resources:
+Logo: `public/imgs/sustainbl-logos/Original.png` (copied from sustainable-website).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Design notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Child's Binder** renamed to **SustainBL**
+- Timeline / Documents / Prep / Meeting Mode tabs appear **only** inside `/sustainbl/*`
+- Brand colors and fonts (`EB Garamond`, `Manrope`) live in CSS variables (`src/app/globals.css`)
