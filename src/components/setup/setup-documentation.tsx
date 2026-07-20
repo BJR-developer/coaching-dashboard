@@ -9,6 +9,8 @@ import { usePortalSetup } from "@/lib/portal/client/use-portal-setup";
 import { SetupWaiting } from "@/components/setup/setup-waiting";
 import { getMeetingType } from "@/lib/portal/meeting-types";
 import { IMAGES } from "@/lib/images";
+import { useUploadDocumentMutation } from "@/lib/portal/query/hooks/use-documents";
+import { useSetupSubmitMutation } from "@/lib/portal/query/hooks/use-setup";
 
 function formatMeetingDate(iso: string | null | undefined) {
   if (!iso) return null;
@@ -26,12 +28,15 @@ export function SetupDocumentation() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const { setup, loading, setSetup } = usePortalSetup();
+  const uploadMutation = useUploadDocumentMutation();
+  const submitMutation = useSetupSubmitMutation();
   const [initialized, setInitialized] = useState(false);
   const [draftDocumentId, setDraftDocumentId] = useState<string | null>(null);
   const [draftFileName, setDraftFileName] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const uploading = uploadMutation.isPending;
+  const completing = submitMutation.isPending;
 
   if (!loading && !initialized) {
     setInitialized(true);
@@ -52,25 +57,20 @@ export function SetupDocumentation() {
   }, [draftDocumentId]);
 
   async function onUpload(file: File) {
-    setUploading(true);
     setError(null);
     try {
       const form = new FormData();
       form.append("file", file);
       form.append("purpose", "iep_draft");
-      const res = await fetch("/api/documents", { method: "POST", body: form });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error || "Upload failed");
-        return;
-      }
+      const json = await uploadMutation.mutateAsync(form);
       if (json.warning) setError(json.warning);
-      setDraftDocumentId(json.document.id);
-      setDraftFileName(json.document.name);
-    } catch {
-      setError("Upload failed");
+      if (json.document) {
+        setDraftDocumentId(json.document.id);
+        setDraftFileName(json.document.name);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
-      setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
@@ -80,25 +80,18 @@ export function SetupDocumentation() {
       setError("Upload your IEP draft before completing setup.");
       return;
     }
-    setCompleting(true);
     setError(null);
     try {
-      const res = await fetch("/api/portal/setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft_document_id: draftDocumentId, submit: true }),
+      const json = await submitMutation.mutateAsync({
+        draft_document_id: draftDocumentId,
+        submit: true,
       });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error || "Something went wrong. Please try again.");
-        return;
-      }
       setSetup(json.setup);
       router.push("/setup");
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setCompleting(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Something went wrong. Please try again.",
+      );
     }
   }
 

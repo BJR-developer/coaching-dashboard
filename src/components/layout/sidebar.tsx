@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { LogOut, Menu, Sparkles, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
@@ -10,10 +11,25 @@ import { Icon } from "@/components/ui/icon";
 import { useAppSession } from "@/components/auth/session-provider";
 import { signOutAction } from "@/lib/auth/actions";
 import { getSidebarNav } from "@/lib/nav";
+import { useDashboardQuery } from "@/lib/portal/query/hooks/use-dashboard";
+import { useMessagesQuery } from "@/lib/portal/query/hooks/use-messages";
+import { useSetupQuery } from "@/lib/portal/query/hooks/use-setup";
+import { prefetchForHref } from "@/lib/portal/query/prefetch";
+
+const SETUP_HIDDEN_STATUSES = new Set([
+  "submitted",
+  "under_review",
+  "approved",
+]);
+const SETUP_STATUS_KEY = "brand_portal_setup_status";
 
 function isActive(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === "/dashboard";
-  if (href === "/sustainbl") return pathname.startsWith("/sustainbl");
+  if (href.startsWith("/case-file")) {
+    return (
+      pathname.startsWith("/case-file") || pathname.startsWith("/sustainbl")
+    );
+  }
   if (href === "/meetings") return pathname.startsWith("/meetings");
   if (href === "/reports") return pathname.startsWith("/reports");
   if (href === "/setup") return pathname.startsWith("/setup");
@@ -23,17 +39,29 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function UnreadBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-on-primary">
+      {count > 9 ? "9+" : count}
+    </span>
+  );
+}
+
 function NavLinks({
   onNavigate,
   compact = false,
   includeSetup = true,
+  unreadMessages = 0,
 }: {
   onNavigate?: () => void;
   compact?: boolean;
   includeSetup?: boolean;
+  unreadMessages?: number;
 }) {
   const pathname = usePathname();
   const { theme } = useAppSession();
+  const qc = useQueryClient();
   const nav = getSidebarNav(theme, { includeSetup });
 
   return (
@@ -45,6 +73,8 @@ function NavLinks({
             key={item.id}
             href={item.href}
             onClick={onNavigate}
+            onMouseEnter={() => prefetchForHref(qc, item.href)}
+            onFocus={() => prefetchForHref(qc, item.href)}
             className={
               active
                 ? `${compact ? "mx-1" : "mx-2"} mb-1 flex items-center gap-3 rounded-lg bg-primary-container px-3 py-2.5 font-bold text-on-primary-container sm:px-4 sm:py-3`
@@ -53,10 +83,50 @@ function NavLinks({
           >
             <Icon name={item.icon} size={20} />
             <span className="font-body text-sm">{item.label}</span>
+            {item.id === "follow-up" ? (
+              <UnreadBadge count={unreadMessages} />
+            ) : null}
           </Link>
         );
       })}
     </>
+  );
+}
+
+function ProfileCard({ onNavigate }: { onNavigate?: () => void }) {
+  const { displayName, avatarUrl, firstName } = useAppSession();
+  const dashboardQuery = useDashboardQuery();
+  const statusLabel =
+    dashboardQuery.data?.caseProgress?.latestStatusLabel || "Getting started";
+  const initial = (firstName || displayName || "?").slice(0, 1).toUpperCase();
+
+  return (
+    <Link
+      href="/settings"
+      onClick={onNavigate}
+      className="mx-1 mb-2 flex items-center gap-3 rounded-xl border border-outline-variant px-3.5 py-3 shadow-xs transition-all bg-surface-variant/30 active:scale-[0.99]"
+    >
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatarUrl}
+          alt=""
+          className="h-10 w-10 shrink-0 rounded-full object-cover border border-outline-variant/40"
+        />
+      ) : (
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+          {initial}
+        </span>
+      )}
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-bold text-on-surface">
+          {displayName}
+        </span>
+        <span className="mt-0.5 block truncate text-[11px] text-on-surface-variant">
+          {statusLabel}
+        </span>
+      </span>
+    </Link>
   );
 }
 
@@ -65,6 +135,7 @@ function SidebarFooter({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="space-y-1 border-t border-outline-variant/30 p-3 sm:p-4">
+      <ProfileCard onNavigate={onNavigate} />
       <Link
         href="/ask-copilot"
         onClick={onNavigate}
@@ -76,14 +147,6 @@ function SidebarFooter({ onNavigate }: { onNavigate?: () => void }) {
       >
         <Sparkles size={18} />
         Ask Copilot
-      </Link>
-      <Link
-        href="/settings"
-        onClick={onNavigate}
-        className="flex items-center gap-3 px-3 py-2 text-sm text-on-surface-variant hover:text-primary sm:px-4"
-      >
-        <Icon name="settings" size={18} />
-        Settings
       </Link>
       <form action={signOutAction}>
         <button
@@ -99,13 +162,7 @@ function SidebarFooter({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function SidebarBrand({ onNavigate }: { onNavigate?: () => void }) {
-  const { theme, copy, displayName } = useAppSession();
-  const initials = displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() || "")
-    .join("");
+  const { theme, copy } = useAppSession();
 
   return (
     <div className="border-b border-outline-variant/30 px-4 py-4 sm:px-5 sm:py-6">
@@ -118,44 +175,54 @@ function SidebarBrand({ onNavigate }: { onNavigate?: () => void }) {
         priority
         onClick={onNavigate}
       />
-      <div className="mt-4 flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-outline-variant/50 bg-surface-container-low font-label text-xs font-bold text-primary">
-          {initials || "U"}
-        </div>
-        <p className="truncate font-body text-sm font-medium text-on-surface">{displayName}</p>
-      </div>
     </div>
   );
 }
 
-const SETUP_HIDDEN_STATUSES = new Set(["submitted", "under_review", "approved"]);
-
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [includeSetup, setIncludeSetup] = useState(true);
+  const [localHideSetup, setLocalHideSetup] = useState(false);
+
+  const setupQuery = useSetupQuery();
+  const messagesQuery = useMessagesQuery();
 
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/portal/setup");
-        const json = await res.json();
-        if (cancelled || !res.ok) return;
-        const status = json.setup?.status as string | undefined;
-        setIncludeSetup(!status || !SETUP_HIDDEN_STATUSES.has(status));
-      } catch {
-        // Keep Setup visible if status can't be loaded.
+    try {
+      const cached = window.localStorage.getItem(SETUP_STATUS_KEY);
+      if (cached && SETUP_HIDDEN_STATUSES.has(cached)) {
+        setLocalHideSetup(true);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    const status = setupQuery.data?.status;
+    if (!status) return;
+    try {
+      window.localStorage.setItem(SETUP_STATUS_KEY, status);
+    } catch {
+      // ignore
+    }
+    setLocalHideSetup(SETUP_HIDDEN_STATUSES.has(status));
+  }, [setupQuery.data?.status]);
+
+  const includeSetup = useMemo(() => {
+    const status = setupQuery.data?.status;
+    if (status) return !SETUP_HIDDEN_STATUSES.has(status);
+    return !localHideSetup;
+  }, [setupQuery.data?.status, localHideSetup]);
+
+  const unreadMessages = useMemo(() => {
+    const threads = messagesQuery.data?.threads || [];
+    return threads.reduce((sum, t) => sum + (t.unreadCount || 0), 0);
+  }, [messagesQuery.data?.threads]);
 
   useEffect(() => {
     if (!open) return;
@@ -168,7 +235,6 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile top bar */}
       <header className="fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b border-outline-variant/50 bg-surface-container-low/95 px-4 backdrop-blur-md lg:hidden">
         <BrandLogo href="/dashboard" size="sm" showWordmark priority />
         <button
@@ -182,16 +248,17 @@ export function Sidebar() {
         </button>
       </header>
 
-      {/* Desktop sidebar */}
       <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-outline-variant/60 bg-surface-container-low lg:flex">
         <SidebarBrand />
         <nav className="mt-3 flex-1 space-y-1 overflow-y-auto px-2">
-          <NavLinks includeSetup={includeSetup} />
+          <NavLinks
+            includeSetup={includeSetup}
+            unreadMessages={unreadMessages}
+          />
         </nav>
         <SidebarFooter />
       </aside>
 
-      {/* Mobile drawer */}
       <AnimatePresence>
         {open ? (
           <>
@@ -202,7 +269,7 @@ export function Sidebar() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-50 bg-on-surface/40 backdrop-blur-[2px] lg:hidden"
+              className="fixed inset-x-0 top-14 bottom-0 z-50 bg-on-surface/40 backdrop-blur-[2px] lg:hidden"
               onClick={() => setOpen(false)}
             />
             <motion.aside
@@ -230,6 +297,7 @@ export function Sidebar() {
                 <NavLinks
                   compact
                   includeSetup={includeSetup}
+                  unreadMessages={unreadMessages}
                   onNavigate={() => setOpen(false)}
                 />
               </nav>

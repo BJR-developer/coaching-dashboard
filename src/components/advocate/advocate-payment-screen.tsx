@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Loader2, Lock } from "lucide-react";
 import { useAppSession } from "@/components/auth/session-provider";
 import { formatBookingDateLabel, parseBookingParams } from "@/lib/booking";
+import {
+  useAdvocateQuery,
+  useSessionsQuery,
+} from "@/lib/portal/query/hooks/use-advocate";
+import { apiSend } from "@/lib/portal/query/fetcher";
 
 export function AdvocatePaymentScreen() {
   const searchParams = useSearchParams();
@@ -14,37 +19,20 @@ export function AdvocatePaymentScreen() {
   const booking = parseBookingParams(searchParams);
   const intentId = searchParams.get("intent_id") || booking.intentId || "";
 
-  const [amountLabel, setAmountLabel] = useState("$197");
-  const [advocateName, setAdvocateName] = useState<string | null>(null);
+  const sessionsQuery = useSessionsQuery();
+  const advocateQuery = useAdvocateQuery();
+  const amountLabel =
+    sessionsQuery.data?.balance?.extraSessionPriceLabel || "$197";
+  const advocateName = advocateQuery.data?.advocate?.name || null;
   const startLabel = booking.date
     ? formatBookingDateLabel(booking.date)
     : "Selected date";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [sessionsRes, advocateRes] = await Promise.all([
-          fetch("/api/portal/sessions"),
-          fetch("/api/portal/advocate"),
-        ]);
-        const sessionsJson = await sessionsRes.json();
-        const advocateJson = await advocateRes.json();
-        if (cancelled) return;
-        if (sessionsJson.balance?.extraSessionPriceLabel) {
-          setAmountLabel(sessionsJson.balance.extraSessionPriceLabel);
-        }
-        if (advocateJson.advocate?.name) setAdvocateName(advocateJson.advocate.name);
-      } catch {
-        // keep defaults
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const [checkoutAmountLabel, setCheckoutAmountLabel] = useState<string | null>(
+    null,
+  );
+  const displayAmount = checkoutAmountLabel || amountLabel;
 
   async function payWithStripe() {
     if (!intentId) {
@@ -54,24 +42,27 @@ export function AdvocatePaymentScreen() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/portal/bookings/checkout", {
+      const json = await apiSend<{
+        amountLabel?: string;
+        checkoutUrl?: string;
+      }>("/api/portal/bookings/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intentId }),
+        json: {
+          intentId,
+          returnTo:
+            booking.returnTo || searchParams.get("return_to") || "/advocate",
+        },
       });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error || "Could not start Stripe Checkout.");
-        return;
-      }
-      if (json.amountLabel) setAmountLabel(json.amountLabel);
+      if (json.amountLabel) setCheckoutAmountLabel(json.amountLabel);
       if (json.checkoutUrl) {
         window.location.href = json.checkoutUrl;
         return;
       }
       setError("Stripe did not return a checkout URL.");
-    } catch {
-      setError("Could not start Stripe Checkout.");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not start Stripe Checkout.",
+      );
     } finally {
       setBusy(false);
     }
@@ -119,7 +110,7 @@ export function AdvocatePaymentScreen() {
           </ul>
           <div className="flex items-baseline justify-between border-t border-outline-variant/40 pt-5">
             <span className="text-lg font-bold text-on-surface">Total</span>
-            <span className="font-headline text-4xl text-primary">{amountLabel}</span>
+            <span className="font-headline text-4xl text-primary">{displayAmount}</span>
           </div>
         </div>
 
@@ -147,7 +138,7 @@ export function AdvocatePaymentScreen() {
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 font-bold text-on-primary shadow-soft transition-all hover:opacity-90 disabled:opacity-60"
           >
             {busy ? <Loader2 size={18} className="animate-spin" /> : null}
-            Pay {amountLabel} with Stripe
+            Pay {displayAmount} with Stripe
           </button>
         </div>
       </div>

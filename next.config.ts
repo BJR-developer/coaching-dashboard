@@ -8,6 +8,28 @@ const nextConfig: NextConfig = {
     "*.ngrok-free.app",
     "*.ngrok.io",
   ],
+  turbopack: {
+    root: __dirname,
+  },
+  async redirects() {
+    return [
+      {
+        source: "/sustainbl",
+        destination: "/case-file/documents",
+        permanent: false,
+      },
+      {
+        source: "/sustainbl/:path*",
+        destination: "/case-file/:path*",
+        permanent: false,
+      },
+      {
+        source: "/case-file",
+        destination: "/case-file/documents",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -3,7 +3,11 @@ export type MeetingTypeId =
   | "initial_eligibility"
   | "triennial_reevaluation"
   | "amended_iep"
-  | "plan_504";
+  | "plan_504"
+  | "review_ard"
+  | "mdard"
+  | "staar_failure_review"
+  | "fba_meeting";
 
 export type MeetingTypeDef = {
   id: MeetingTypeId;
@@ -59,6 +63,42 @@ export const MEETING_TYPES: MeetingTypeDef[] = [
     prepFocus:
       "Focus on classroom access barriers and concrete accommodations that would help day to day.",
   },
+  {
+    id: "review_ard",
+    label: "Review ARD",
+    shortTitle: "Review ARD",
+    description:
+      "Mid-cycle ARD / IEP team meeting to revise services, goals, or placement.",
+    prepFocus:
+      "List the changes you want and any new data (grades, behavior, related services).",
+  },
+  {
+    id: "mdard",
+    label: "MDARD (manifestation determination)",
+    shortTitle: "MDARD",
+    description:
+      "Determine whether behavior leading to discipline was a manifestation of the disability.",
+    prepFocus:
+      "Gather behavior history, IEP/BIP details, and questions about placement and services.",
+  },
+  {
+    id: "staar_failure_review",
+    label: "STAAR-failure review",
+    shortTitle: "STAAR Review",
+    description:
+      "Texas-focused review when state assessment results trigger accelerated instruction or plan changes.",
+    prepFocus:
+      "Bring score reports and questions about make-up instruction or IEP updates.",
+  },
+  {
+    id: "fba_meeting",
+    label: "FBA / BIP meeting",
+    shortTitle: "FBA Meeting",
+    description:
+      "Discuss Functional Behavior Assessment findings and Behavior Intervention Plan supports.",
+    prepFocus:
+      "Note patterns at home/school and what interventions have or have not worked.",
+  },
 ];
 
 export function getMeetingType(id: string | null | undefined): MeetingTypeDef | null {
@@ -89,4 +129,24 @@ export function formatMeetingDateLabel(meetingDate: string | null | undefined): 
     day: "numeric",
     year: "numeric",
   });
+}
+
+/** Prefer purpose / meeting-type label over internal appointment_type slugs. */
+export function formatMeetingTitle(
+  appointmentType: string | null | undefined,
+  purpose: string | null | undefined,
+): string {
+  const purposeText = purpose?.trim();
+  if (purposeText) return purposeText;
+
+  const typed = getMeetingType(appointmentType);
+  if (typed) return typed.label;
+
+  if (!appointmentType || appointmentType === "portal_booking" || appointmentType === "session") {
+    return "Meeting";
+  }
+
+  return appointmentType
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }

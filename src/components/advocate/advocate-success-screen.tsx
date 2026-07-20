@@ -6,7 +6,12 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useAppSession } from "@/components/auth/session-provider";
-import { formatBookingDateLabel, parseBookingParams } from "@/lib/booking";
+import {
+  formatBookingDateLabel,
+  parseBookingParams,
+  sanitizeReturnTo,
+} from "@/lib/booking";
+import { useBookingConfirmMutation } from "@/lib/portal/query/hooks/use-advocate";
 
 const REDIRECT_SECONDS = 5;
 
@@ -18,6 +23,12 @@ export function AdvocateSuccessScreen() {
   const sessionId = searchParams.get("session_id");
   const intentId = searchParams.get("intent_id");
   const appointmentId = searchParams.get("appointment_id");
+  const returnTo = sanitizeReturnTo(
+    searchParams.get("return_to") || booking.returnTo || "/advocate",
+  );
+  const returnLabel =
+    returnTo === "/meetings" ? "Meetings" : copy.coachNavLabel;
+  const confirmMutation = useBookingConfirmMutation();
 
   const [seconds, setSeconds] = useState(REDIRECT_SECONDS);
   const [confirming, setConfirming] = useState(Boolean(sessionId || intentId));
@@ -42,21 +53,18 @@ export function AdvocateSuccessScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/portal/bookings/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, intentId }),
-        });
-        const json = await res.json();
+        const json = (await confirmMutation.mutateAsync({
+          sessionId,
+          intentId,
+        })) as {
+          startTime?: string;
+          purpose?: string;
+          advocateName?: string | null;
+        };
         if (cancelled) return;
-        if (!res.ok) {
-          setError(json.error || "Could not confirm payment booking.");
-          setConfirming(false);
-          return;
-        }
         setDetails({
           dateLabel: formatBookingDateLabel(json.startTime || booking.date),
-          time: booking.time || new Date(json.startTime).toLocaleTimeString([], {
+          time: booking.time || new Date(json.startTime || Date.now()).toLocaleTimeString([], {
             hour: "numeric",
             minute: "2-digit",
           }),
@@ -64,9 +72,11 @@ export function AdvocateSuccessScreen() {
           advocateName: json.advocateName || searchParams.get("advocate") || "",
         });
         setConfirming(false);
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          setError("Could not confirm payment booking.");
+          setError(
+            err instanceof Error ? err.message : "Could not confirm payment booking.",
+          );
           setConfirming(false);
         }
       }
@@ -75,7 +85,9 @@ export function AdvocateSuccessScreen() {
     return () => {
       cancelled = true;
     };
-  }, [sessionId, intentId, booking.date, booking.time, booking.purpose, searchParams]);
+    // Intentionally once per payment return URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, intentId]);
 
   useEffect(() => {
     if (confirming || error) return;
@@ -87,8 +99,8 @@ export function AdvocateSuccessScreen() {
 
   useEffect(() => {
     if (confirming || error || seconds > 0) return;
-    router.replace("/advocate");
-  }, [seconds, router, confirming, error]);
+    router.replace(returnTo);
+  }, [seconds, router, confirming, error, returnTo]);
 
   if (confirming) {
     return (
@@ -130,16 +142,16 @@ export function AdvocateSuccessScreen() {
 
       {!error ? (
         <p className="mb-6 text-sm text-on-surface-variant">
-          Returning to {copy.coachNavLabel} in{" "}
+          Returning to {returnLabel} in{" "}
           <span className="font-bold text-primary">{seconds}</span>…
         </p>
       ) : null}
 
       <Link
-        href="/advocate"
+        href={returnTo}
         className="rounded-xl bg-primary px-8 py-4 font-bold text-on-primary shadow-soft"
       >
-        Back to {copy.coachNavLabel}
+        Back to {returnLabel}
       </Link>
     </motion.div>
   );

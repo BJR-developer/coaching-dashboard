@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/portal/server/auth";
 import { getProfileEmail } from "@/lib/portal/server/profile";
-import { fetchAppointmentsForUser, fetchUserMeetingSummary } from "@/lib/portal/server/meetings";
+import {
+  fetchAppointmentsForUser,
+  fetchUserMeetingSummary,
+  meetingHasUserSummary,
+} from "@/lib/portal/server/meetings";
+import { ensureSetupAppointment } from "@/lib/portal/server/setup-appointment";
 
 export async function GET() {
   const supabase = await createClient();
@@ -11,6 +16,22 @@ export async function GET() {
   const { user } = auth;
 
   const email = await getProfileEmail(supabase, user.id);
+
+  // Backfill: Set Schedule used to save only portal_setup — ensure an appointment exists.
+  const { data: setup } = await supabase
+    .from("portal_setup")
+    .select("appointment_id, advisor_id, meeting_date, meeting_time, meeting_type, status")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (
+    setup &&
+    (setup.status === "approved" ||
+      setup.status === "submitted" ||
+      setup.status === "under_review")
+  ) {
+    await ensureSetupAppointment(supabase, user.id, setup);
+  }
 
   let appointments;
   try {
@@ -23,7 +44,11 @@ export async function GET() {
   const meetings = await Promise.all(
     appointments.map(async (appointment) => {
       const summary = await fetchUserMeetingSummary(appointment.id, user.id);
-      return { ...appointment, hasSummary: Boolean(summary), summary };
+      return {
+        ...appointment,
+        hasSummary: meetingHasUserSummary(summary),
+        summary: meetingHasUserSummary(summary) ? summary : null,
+      };
     }),
   );
 

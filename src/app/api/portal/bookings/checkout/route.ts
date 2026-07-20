@@ -3,9 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/portal/server/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAppOrigin, getStripe } from "@/lib/stripe";
+import { sanitizeReturnTo } from "@/lib/booking";
 import { formatCents } from "@/lib/portal/session-grants";
 
-type Body = { intentId?: string };
+type Body = { intentId?: string; returnTo?: string };
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -46,9 +47,15 @@ export async function POST(request: Request) {
   const amountCents = intent.amount_cents || 19700;
   const origin = getAppOrigin();
   const stripe = getStripe();
+  const returnTo = sanitizeReturnTo(body.returnTo);
 
   const successParams = new URLSearchParams({
     intent_id: intent.id,
+    return_to: returnTo,
+  });
+  const cancelParams = new URLSearchParams({
+    intent_id: intent.id,
+    return_to: returnTo,
   });
 
   const session = await stripe.checkout.sessions.create({
@@ -70,13 +77,14 @@ export async function POST(request: Request) {
       },
     ],
     success_url: `${origin}/advocate/success?${successParams.toString()}&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}/advocate/payment?intent_id=${intent.id}`,
+    cancel_url: `${origin}/advocate/payment?${cancelParams.toString()}`,
     metadata: {
       enrollment_type: "portal_session_booking",
       intent_id: intent.id,
       user_id: user.id,
       advisor_id: intent.advisor_id,
       enrollment_id: intent.enrollment_id || "",
+      return_to: returnTo,
     },
   });
 

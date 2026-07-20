@@ -9,8 +9,8 @@ import { usePortalSetup } from "@/lib/portal/client/use-portal-setup";
 import { SetupWaiting } from "@/components/setup/setup-waiting";
 import { MEETING_TYPES, getMeetingType } from "@/lib/portal/meeting-types";
 import { IMAGES } from "@/lib/images";
-
-type AvailableDay = { date: string; times: string[] };
+import { useAvailabilityQuery } from "@/lib/portal/query/hooks/use-advocate";
+import { useSetupMutation } from "@/lib/portal/query/hooks/use-setup";
 
 function formatMeetingDate(iso: string | null | undefined) {
   if (!iso) return null;
@@ -30,11 +30,14 @@ export function SetupMilestone() {
   const [meetingDate, setMeetingDate] = useState("");
   const [meetingTime, setMeetingTime] = useState("");
   const [meetingType, setMeetingType] = useState("");
-  const [days, setDays] = useState<AvailableDay[]>([]);
-  const [loadingSlots, setLoadingSlots] = useState(true);
   const [initialized, setInitialized] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const availabilityQuery = useAvailabilityQuery();
+  const setupMutation = useSetupMutation();
+  const days = availabilityQuery.data?.days || [];
+  const loadingSlots = availabilityQuery.isPending && !availabilityQuery.data;
+  const saving = setupMutation.isPending;
 
   if (!loading && !initialized) {
     setInitialized(true);
@@ -42,25 +45,6 @@ export function SetupMilestone() {
     setMeetingTime(setup?.meeting_time || "");
     setMeetingType(setup?.meeting_type || "");
   }
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoadingSlots(true);
-      try {
-        const res = await fetch("/api/portal/availability");
-        const json = await res.json();
-        if (!cancelled) setDays(json.days || []);
-      } catch {
-        if (!cancelled) setDays([]);
-      } finally {
-        if (!cancelled) setLoadingSlots(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const timesForDate = useMemo(() => {
     const day = days.find((d) => d.date === meetingDate);
@@ -83,29 +67,19 @@ export function SetupMilestone() {
       setError("Please choose an available date, time, and meeting type.");
       return;
     }
-    setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/portal/setup", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          meeting_date: meetingDate,
-          meeting_time: meetingTime,
-          meeting_type: meetingType,
-        }),
+      const json = await setupMutation.mutateAsync({
+        meeting_date: meetingDate,
+        meeting_time: meetingTime,
+        meeting_type: meetingType,
       });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error || "Something went wrong. Please try again.");
-        return;
-      }
       setSetup(json.setup);
       router.push("/setup/documentation");
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Something went wrong. Please try again.",
+      );
     }
   }
 

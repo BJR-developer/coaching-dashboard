@@ -1,9 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { Calendar, ChevronRight, Clock, Loader2, Sparkles, User } from "lucide-react";
+import {
+  Calendar,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  Loader2,
+  Sparkles,
+  User,
+  Video,
+} from "lucide-react";
+import { PageShell } from "@/components/layout/page-shell";
+import { formatMeetingTitle } from "@/lib/portal/meeting-types";
 import type { PortalMeetingDetail } from "@/lib/portal/types";
+import { useMeetingDetailQuery } from "@/lib/portal/query/hooks/use-meetings";
+
+function getJoinState(meeting: PortalMeetingDetail) {
+  const canJoinStatus =
+    meeting.status === "scheduled" || meeting.status === "in_progress";
+  const hasLink = Boolean(meeting.meetingLink);
+
+  if (!canJoinStatus) {
+    return { show: false as const, enabled: false, reason: null as string | null };
+  }
+  if (!hasLink) {
+    return {
+      show: true as const,
+      enabled: false,
+      reason: "Your join link is being prepared. Refresh in a moment.",
+    };
+  }
+  return { show: true as const, enabled: true, reason: null as string | null };
+}
 
 type QuestionAnswer = { question: string; answer: string | null };
 type Note = { title: string | null; body: string };
@@ -65,60 +94,40 @@ function formatDateLabel(iso: string) {
 }
 
 export function MeetingDetailSection({ id }: { id: string }) {
-  const [meeting, setMeeting] = useState<PortalMeetingDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/portal/meetings/${id}`);
-        const json = await res.json();
-        if (cancelled) return;
-        if (!res.ok) setError(json.error || "Failed to load meeting");
-        else setMeeting(json.meeting);
-      } catch {
-        if (!cancelled) setError("Failed to load meeting");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  const meetingQuery = useMeetingDetailQuery(id);
+  const meeting = meetingQuery.data?.meeting ?? null;
+  const loading = meetingQuery.isPending && !meetingQuery.data;
+  const error = meetingQuery.error?.message || null;
 
   if (loading) {
     return (
-      <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-16 text-on-surface-variant sm:px-6 sm:py-24 lg:px-12">
+      <PageShell className="flex items-center gap-3 py-16 text-on-surface-variant">
         <Loader2 className="animate-spin" size={20} />
         Loading meeting…
-      </div>
+      </PageShell>
     );
   }
 
   if (error || !meeting) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 sm:py-24 lg:px-12">
+      <PageShell className="py-16 text-center">
         <p className="mb-4 text-on-surface-variant">{error || "Meeting not found."}</p>
         <Link href="/meetings" className="font-bold text-primary hover:underline">
           Back to meetings
         </Link>
-      </div>
+      </PageShell>
     );
   }
 
-  const title = meeting.appointmentType || meeting.purpose || "Meeting";
+  const title = formatMeetingTitle(meeting.appointmentType, meeting.purpose);
   const questions = toQuestions(meeting.summary?.questions_json);
   const notes = toNotes(meeting.summary?.notes_json);
   const checklist = toChecklist(meeting.summary?.checklist_json);
+  const joinState = getJoinState(meeting);
 
   return (
-    <div className="page-pad mx-auto max-w-4xl pb-16">
-      <nav className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-on-surface-variant">
+    <PageShell className="pb-16">
+      <nav className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-on-surface-variant">
         <Link href="/meetings" className="hover:text-primary">
           Meetings
         </Link>
@@ -126,8 +135,8 @@ export function MeetingDetailSection({ id }: { id: string }) {
         <span className="truncate text-on-surface">{title}</span>
       </nav>
 
-      <header className="mb-8 sm:mb-12">
-        <h1 className="page-title mb-2 font-medium">{title}</h1>
+      <header className="mb-8 sm:mb-10">
+        <h1 className="page-title font-normal">{title}</h1>
         <div className="flex flex-wrap items-center gap-3 text-sm text-on-surface-variant sm:gap-4">
           <span className="flex items-center gap-1">
             <Calendar size={14} /> {formatDateLabel(meeting.startTime)}
@@ -141,13 +150,56 @@ export function MeetingDetailSection({ id }: { id: string }) {
             </span>
           ) : null}
         </div>
+
+        {joinState.show ? (
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+            {joinState.enabled && meeting.meetingLink ? (
+              <a
+                href={meeting.meetingLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-on-primary shadow-soft transition-colors hover:bg-primary-container hover:text-on-primary-container"
+              >
+                <Video size={18} />
+                Join meeting
+                <ExternalLink size={14} className="opacity-70" />
+              </a>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary/40 px-6 py-3.5 text-sm font-bold text-on-primary opacity-70"
+              >
+                <Video size={18} />
+                Join meeting
+              </button>
+            )}
+            {joinState.reason ? (
+              <p className="text-sm text-on-surface-variant">{joinState.reason}</p>
+            ) : (
+              <p className="text-sm text-on-surface-variant">
+                Remote video meeting with your advocate. Recording may be available after the
+                session.
+              </p>
+            )}
+          </div>
+        ) : null}
+
+        {!joinState.show ? (
+          <p className="mt-4 text-sm text-on-surface-variant">
+            This was a remote video meeting. Recording may be available from your advocate after
+            the session.
+          </p>
+        ) : null}
       </header>
 
       {meeting.summary?.summary_markdown ? (
         <section className="mb-10 sm:mb-16">
           <div className="mb-4 flex items-center gap-2 sm:mb-6">
             <Sparkles className="text-primary" size={18} />
-            <h2 className="text-sm font-bold uppercase tracking-widest text-primary">AI Summary</h2>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-primary">
+              Meeting summary
+            </h2>
           </div>
           <p className="max-w-3xl whitespace-pre-wrap font-headline text-lg italic leading-relaxed text-on-surface sm:text-xl">
             {meeting.summary.summary_markdown}
@@ -156,8 +208,9 @@ export function MeetingDetailSection({ id }: { id: string }) {
       ) : (
         <section className="mb-10 rounded-xl border border-outline-variant/30 bg-surface-container-low p-5 sm:mb-16 sm:p-8">
           <p className="text-on-surface-variant">
-            No summary has been added for this meeting yet. Your advocate will share notes here once
-            it&apos;s available.
+            {meeting.status === "completed" || meeting.status === "in_progress"
+              ? "Your meeting summary is being prepared. Check back in a minute — it will appear here when ready."
+              : "No summary has been added for this meeting yet. Notes from your session will appear here after the meeting ends."}
           </p>
         </section>
       )}
@@ -233,6 +286,6 @@ export function MeetingDetailSection({ id }: { id: string }) {
           </div>
         </section>
       ) : null}
-    </div>
+    </PageShell>
   );
 }

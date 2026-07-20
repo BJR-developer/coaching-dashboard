@@ -1,8 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  ensureAppointmentJoinCredentials,
+  resolveMeetingLink,
+} from "@/lib/portal/meeting-link";
 
 const APPOINTMENT_COLUMNS = `
   id, advisor_id, start_time, end_time, duration_minutes, appointment_type, status,
-  meeting_link, meeting_code, purpose, cancellation_reason, completed_at, created_at,
+  meeting_link, meeting_code, meeting_token, purpose, cancellation_reason, completed_at, created_at,
   advisors ( id, first_name, last_name )
 `;
 
@@ -18,6 +22,7 @@ type RawAppointment = {
   status: string;
   meeting_link: string | null;
   meeting_code: string | null;
+  meeting_token: string | null;
   purpose: string | null;
   cancellation_reason: string | null;
   completed_at: string | null;
@@ -54,7 +59,11 @@ function sanitizeAppointment(row: RawAppointment): SanitizedAppointment {
     durationMinutes: row.duration_minutes,
     appointmentType: row.appointment_type,
     status: row.status,
-    meetingLink: row.meeting_link,
+    meetingLink: resolveMeetingLink({
+      appointmentId: row.id,
+      meetingLink: row.meeting_link,
+      meetingToken: row.meeting_token,
+    }),
     meetingCode: row.meeting_code,
     purpose: row.purpose,
     cancellationReason: row.cancellation_reason,
@@ -81,7 +90,24 @@ export async function fetchAppointmentsForUser(
   const { data, error } = await scoped.order("start_time", { ascending: false });
   if (error) throw error;
 
-  return ((data ?? []) as unknown as RawAppointment[]).map(sanitizeAppointment);
+  const rows = (data ?? []) as unknown as RawAppointment[];
+  const sanitized = await Promise.all(
+    rows.map(async (row) => {
+      if (
+        (row.status === "scheduled" || row.status === "in_progress") &&
+        !row.meeting_token
+      ) {
+        const link = await ensureAppointmentJoinCredentials(row.id);
+        return {
+          ...sanitizeAppointment(row),
+          meetingLink: link,
+        };
+      }
+      return sanitizeAppointment(row);
+    }),
+  );
+
+  return sanitized;
 }
 
 export async function fetchAppointmentForUser(
@@ -97,8 +123,18 @@ export async function fetchAppointmentForUser(
 
   const { data, error } = await scoped.maybeSingle();
   if (error) throw error;
+  if (!data) return null;
 
-  return data ? sanitizeAppointment(data as unknown as RawAppointment) : null;
+  const row = data as unknown as RawAppointment;
+  if (
+    (row.status === "scheduled" || row.status === "in_progress") &&
+    (!row.meeting_token || !row.meeting_link)
+  ) {
+    const link = await ensureAppointmentJoinCredentials(row.id);
+    return { ...sanitizeAppointment(row), meetingLink: link };
+  }
+
+  return sanitizeAppointment(row);
 }
 
 export type UserMeetingSummary = {
@@ -110,18 +146,29 @@ export type UserMeetingSummary = {
   updated_at: string;
 };
 
+/**
+ * Family/parent summary for an appointment (role=user).
+ * Callers must already have verified the appointment belongs to this user.
+ * Looks up by appointment + role so a generated report still surfaces even if
+ * user_id on the row was backfilled later.
+ */
 export async function fetchUserMeetingSummary(
   appointmentId: string,
-  userId: string,
+  _userId?: string,
 ): Promise<UserMeetingSummary | null> {
   const admin = createAdminClient();
   const { data } = await admin
     .from("portal_meeting_summaries")
     .select("id, summary_markdown, questions_json, notes_json, checklist_json, updated_at")
     .eq("appointment_id", appointmentId)
-    .eq("user_id", userId)
     .eq("role", "user")
     .maybeSingle();
 
   return data ?? null;
+}
+
+export function meetingHasUserSummary(
+  summary: UserMeetingSummary | null | undefined,
+): boolean {
+  return Boolean(summary?.summary_markdown?.trim());
 }

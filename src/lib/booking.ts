@@ -19,7 +19,16 @@ export type BookingDraft = {
   time: string;
   purpose: string;
   intentId?: string;
+  returnTo?: string;
 };
+
+const SAFE_RETURN_PATHS = new Set(["/meetings", "/advocate"]);
+
+export function sanitizeReturnTo(value: string | null | undefined): string {
+  if (!value) return "/advocate";
+  const path = value.startsWith("/") ? value.split("?")[0] : "";
+  return SAFE_RETURN_PATHS.has(path) ? path : "/advocate";
+}
 
 export function buildPaymentHref(draft: BookingDraft & { intentId: string }) {
   const params = new URLSearchParams({
@@ -28,6 +37,7 @@ export function buildPaymentHref(draft: BookingDraft & { intentId: string }) {
     time: draft.time,
     purpose: draft.purpose,
   });
+  if (draft.returnTo) params.set("return_to", sanitizeReturnTo(draft.returnTo));
   return `/advocate/payment?${params.toString()}`;
 }
 
@@ -37,6 +47,7 @@ export function buildSuccessHref(draft: {
   purpose?: string;
   appointmentId?: string;
   advocateName?: string | null;
+  returnTo?: string;
 }) {
   const params = new URLSearchParams();
   if (draft.date) params.set("date", draft.date);
@@ -44,6 +55,7 @@ export function buildSuccessHref(draft: {
   if (draft.purpose) params.set("purpose", draft.purpose);
   if (draft.appointmentId) params.set("appointment_id", draft.appointmentId);
   if (draft.advocateName) params.set("advocate", draft.advocateName);
+  if (draft.returnTo) params.set("return_to", sanitizeReturnTo(draft.returnTo));
   return `/advocate/success?${params.toString()}`;
 }
 
@@ -53,6 +65,7 @@ export function parseBookingParams(searchParams: URLSearchParams): BookingDraft 
     time: searchParams.get("time") || BOOKING_TIMES[1],
     purpose: searchParams.get("purpose") || BOOKING_PURPOSES[0],
     intentId: searchParams.get("intent_id") || undefined,
+    returnTo: sanitizeReturnTo(searchParams.get("return_to")),
   };
 }
 

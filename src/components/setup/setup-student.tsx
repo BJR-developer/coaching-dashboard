@@ -10,6 +10,7 @@ import { usePortalSetup } from "@/lib/portal/client/use-portal-setup";
 import { SetupWaiting } from "@/components/setup/setup-waiting";
 import { getMeetingType } from "@/lib/portal/meeting-types";
 import { IMAGES } from "@/lib/images";
+import { useSetupMutation } from "@/lib/portal/query/hooks/use-setup";
 
 function formatMeetingDate(iso: string | null | undefined) {
   if (!iso) return null;
@@ -27,10 +28,11 @@ export function SetupStudent() {
   const router = useRouter();
   const { displayName } = useAppSession();
   const { setup, loading, error: loadError, setSetup } = usePortalSetup();
-  const [saving, setSaving] = useState(false);
+  const setupMutation = useSetupMutation();
   const [error, setError] = useState<string | null>(null);
 
   const welcomeName = setup?.student_name || displayName || "there";
+  const saving = setupMutation.isPending;
 
   async function handleContinue(e: FormEvent) {
     e.preventDefault();
@@ -39,25 +41,15 @@ export function SetupStudent() {
       setError("Please update your name in Settings before continuing.");
       return;
     }
-    setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/portal/setup", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_name: name }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error || "Something went wrong. Please try again.");
-        return;
-      }
+      const json = await setupMutation.mutateAsync({ student_name: name });
       setSetup(json.setup);
       router.push("/setup/milestone");
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Something went wrong. Please try again.",
+      );
     }
   }
 

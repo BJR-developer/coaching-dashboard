@@ -1,42 +1,42 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSetupQuery } from "@/lib/portal/query/hooks/use-setup";
+import { apiGet } from "@/lib/portal/query/fetcher";
+import { portalKeys } from "@/lib/portal/query/query-keys";
 import type { PortalSetup } from "@/lib/portal/types";
 
-/** Loads and caches the current user's portal setup record for the setup wizard. */
+/** Loads portal setup via TanStack Query (shared with sidebar + setup wizard). */
 export function usePortalSetup() {
-  const [setup, setSetup] = useState<PortalSetup | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const query = useSetupQuery();
+  const qc = useQueryClient();
 
   const reload = useCallback(async () => {
-    setError(null);
-    try {
-      const res = await fetch("/api/portal/setup");
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error || "Failed to load setup");
-        return null;
-      }
-      setSetup(json.setup ?? null);
-      return (json.setup ?? null) as PortalSetup | null;
-    } catch {
-      setError("Failed to load setup");
-      return null;
-    }
-  }, []);
+    return qc.fetchQuery({
+      queryKey: portalKeys.setup(),
+      queryFn: async () => {
+        const json = await apiGet<{ setup: PortalSetup | null }>("/api/portal/setup");
+        return json.setup ?? null;
+      },
+    });
+  }, [qc]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      await reload();
-      if (!cancelled) setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [reload]);
+  const setSetup = useCallback(
+    (value: PortalSetup | null | ((prev: PortalSetup | null) => PortalSetup | null)) => {
+      qc.setQueryData<PortalSetup | null>(portalKeys.setup(), (prev) => {
+        const current = prev ?? null;
+        return typeof value === "function" ? value(current) : value;
+      });
+    },
+    [qc],
+  );
 
-  return { setup, loading, error, reload, setSetup };
+  return {
+    setup: query.data ?? null,
+    loading: query.isPending && query.data === undefined,
+    error: query.error ? query.error.message : null,
+    reload,
+    setSetup,
+  };
 }

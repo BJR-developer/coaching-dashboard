@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { ArrowLeft, Download, Loader2, Printer } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { MarkdownContent } from "@/components/ui/markdown-content";
+import { useReportDetailQuery } from "@/lib/portal/query/hooks/use-reports";
 
 type ReportDetail = {
   id: string;
@@ -37,34 +37,10 @@ function asStringList(value: unknown): string[] {
 }
 
 export function ReportPdfSection({ id }: { id: string }) {
-  const [report, setReport] = useState<ReportDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/portal/reports/${id}`);
-        const json = await res.json();
-        if (cancelled) return;
-        if (!res.ok) {
-          setError(json.error || "Failed to load report");
-          return;
-        }
-        setReport(json.report);
-      } catch {
-        if (!cancelled) setError("Failed to load report");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  const reportQuery = useReportDetailQuery(id);
+  const report = (reportQuery.data?.report as ReportDetail | undefined) ?? null;
+  const loading = reportQuery.isPending && !reportQuery.data;
+  const error = reportQuery.error?.message || null;
 
   const questions = asStringList(report?.questions);
   const notes = asStringList(report?.notes);

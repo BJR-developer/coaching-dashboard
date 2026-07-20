@@ -14,6 +14,7 @@ export type PortalSetup = {
   meeting_type: string | null;
   draft_document_id: string | null;
   advisor_id: string | null;
+  appointment_id: string | null;
   status: PortalSetupStatus;
   review_note: string | null;
   submitted_at: string | null;
@@ -83,6 +84,18 @@ export type PortalUpcomingMeeting =
     }
   | "still_not_set";
 
+export type PortalCaseProgress = {
+  hasDocuments: boolean;
+  hasIepDraft: boolean;
+  meetingScheduled: boolean;
+  hasAccommodations: boolean;
+  hasCompensatory: boolean;
+  journeyTouched: boolean;
+  hasPrep: boolean;
+  includeIepDomain: boolean;
+  latestStatusLabel: string;
+};
+
 export type PortalDashboardResponse = {
   setup: PortalSetup | null;
   meetingType: PortalMeetingTypeSummary;
@@ -90,6 +103,7 @@ export type PortalDashboardResponse = {
   priority: PortalPriorityAction;
   upcomingMeeting: PortalUpcomingMeeting;
   studentName: string | null;
+  caseProgress?: PortalCaseProgress;
 };
 
 export type PortalMeetingSummary = {

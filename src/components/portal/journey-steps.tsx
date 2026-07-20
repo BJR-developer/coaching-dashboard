@@ -64,34 +64,106 @@ export function JourneySteps({ steps, compact = false }: JourneyStepsProps) {
   );
 }
 
+function stepState(done: boolean, previousDone: boolean): JourneyStep["state"] {
+  if (done) return "done";
+  if (previousDone) return "active";
+  return "upcoming";
+}
+
+/** Dashboard “Your Journey” — case-file progress (not the old timeline page). */
+export function buildCaseFileJourneySteps(params: {
+  hasDocuments: boolean;
+  hasIepDraft: boolean;
+  meetingScheduled: boolean;
+  meetingLabel?: string | null;
+  meetingDateLabel?: string | null;
+  hasAccommodations: boolean;
+  hasCompensatory: boolean;
+  journeyTouched: boolean;
+  hasPrep: boolean;
+  includeIepDomain: boolean;
+}): JourneyStep[] {
+  const steps: JourneyStep[] = [];
+  let previousDone = true;
+
+  const push = (step: Omit<JourneyStep, "state"> & { done: boolean }) => {
+    const state = stepState(step.done, previousDone);
+    steps.push({
+      id: step.id,
+      title: step.title,
+      body: step.body,
+      state,
+    });
+    previousDone = step.done;
+  };
+
+  push({
+    id: "documents",
+    title: "Documents uploaded",
+    body: "Evidence is in your Case file",
+    done: params.hasDocuments,
+  });
+  push({
+    id: "iep_draft",
+    title: "IEP draft uploaded",
+    body: "From Set Schedule",
+    done: params.hasIepDraft,
+  });
+  push({
+    id: "meeting",
+    title: params.meetingLabel ? `${params.meetingLabel} scheduled` : "Meeting scheduled",
+    body: params.meetingDateLabel || "Set your meeting date",
+    done: params.meetingScheduled,
+  });
+
+  if (params.includeIepDomain) {
+    push({
+      id: "accommodations",
+      title: "Accommodations listed",
+      body: "Classroom supports with proof",
+      done: params.hasAccommodations,
+    });
+    push({
+      id: "compensatory",
+      title: "Compensatory plan started",
+      body: "Missed or owed services",
+      done: params.hasCompensatory,
+    });
+    push({
+      id: "journey",
+      title: "Process journey updated",
+      body: "Checklist of where you are",
+      done: params.journeyTouched,
+    });
+  }
+
+  push({
+    id: "prep",
+    title: "Meeting prep started",
+    body: "Questions, notes, or checklist",
+    done: params.hasPrep,
+  });
+
+  return steps;
+}
+
+/** @deprecated Prefer buildCaseFileJourneySteps */
 export function buildScheduleJourneySteps(params: {
   meetingLabel?: string | null;
   meetingDateLabel?: string | null;
   hasDraft: boolean;
   scheduled: boolean;
 }): JourneyStep[] {
-  const meetingTitle = params.meetingLabel
-    ? `${params.meetingLabel} scheduled`
-    : "Meeting scheduled";
-  return [
-    {
-      id: "scheduled",
-      title: meetingTitle,
-      body: params.meetingDateLabel || null,
-      state: params.scheduled ? "done" : "upcoming",
-    },
-    {
-      id: "draft",
-      title: "IEP draft uploaded",
-      state: params.hasDraft ? "done" : params.scheduled ? "active" : "upcoming",
-    },
-    {
-      id: "waiting",
-      title: "Waiting for the meeting",
-      body: params.scheduled
-        ? "Your schedule is set. Prep when you’re ready."
-        : "Complete Set Schedule to lock in your meeting.",
-      state: params.scheduled && params.hasDraft ? "active" : "upcoming",
-    },
-  ];
+  return buildCaseFileJourneySteps({
+    hasDocuments: params.hasDraft,
+    hasIepDraft: params.hasDraft,
+    meetingScheduled: params.scheduled,
+    meetingLabel: params.meetingLabel,
+    meetingDateLabel: params.meetingDateLabel,
+    hasAccommodations: false,
+    hasCompensatory: false,
+    journeyTouched: false,
+    hasPrep: false,
+    includeIepDomain: false,
+  });
 }

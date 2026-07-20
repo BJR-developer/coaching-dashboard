@@ -18,6 +18,7 @@ export type AppSession = {
   firstName: string;
   lastName: string;
   phoneNumber: string;
+  avatarUrl: string | null;
   serviceType: ServiceType;
   theme: PortalTheme;
   notificationPreferences: NotificationPreferences;
@@ -34,7 +35,7 @@ export const getAppSession = cache(async (): Promise<AppSession | null> => {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "email, name, first_name, last_name, phone_number, service_type, notification_preferences",
+      "email, name, first_name, last_name, phone_number, avatar_url, service_type, notification_preferences",
     )
     .eq("id", user.id)
     .maybeSingle();
@@ -55,6 +56,7 @@ export const getAppSession = cache(async (): Promise<AppSession | null> => {
     firstName,
     lastName,
     phoneNumber: profile?.phone_number?.trim() || "",
+    avatarUrl: profile?.avatar_url?.trim() || null,
     serviceType,
     theme: resolvePortalTheme(serviceType),
     notificationPreferences: parseNotificationPreferences(

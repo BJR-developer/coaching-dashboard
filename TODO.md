@@ -1,6 +1,6 @@
 # IEP / Coaching Portal — Status Tracker
 
-Last updated: 2026-07-19  
+Last updated: 2026-07-20  
 Source apps: **`brand`** (this repo) + **`../sustainable-website`** (advisor/enrollment/VA)  
 Shared DB: Supabase `cgghmctyygkqzalfhqsx`
 
@@ -35,14 +35,20 @@ Update checkboxes as work lands. Do not delete completed items — mark them don
 - [x] Dynamic dashboard (priority action, upcoming meeting, student name)
 - [x] Ask Copilot moved to sidebar; Recent Activity removed
 - [x] Documents upload/list/delete (Storage; status `ready`)
-- [x] Timeline from real events
+- [x] Document categories + filters + PDF-only upload dialog (D1)
+- [x] Dashboard “Your Journey” case progress (Timeline tab removed from Case file)
 - [x] Prep: questions / notes / checklist CRUD + templates (no must-ask flags)
+- [x] Accommodations & supportive services tab (IEP) (D2) — proof dropzone + confirm delete
+- [x] Compensatory service plans tab (IEP) (D3)
+- [x] Process journey checklist + custom steps + reorder (IEP) (D6)
+- [x] Sidebar profile card (avatar/name/status) + Settings photo upload
 - [x] Dynamic meetings list + detail + summary badges
 - [x] Dynamic PDF/report list + detail
 - [x] Follow-up as messaging (advocate/coach labels; notify on advisor reply)
 - [x] Settings: profile load/save; notification prefs; no 2FA section
 - [x] Responsive shell (mobile nav, page padding utilities)
 - [x] Confirm dialogs (no `window.confirm`); markdown in Ask Copilot
+- [x] TanStack Query portal data layer (shared cache, mutations invalidate related keys, nav prefetch)
 
 ### Advocate / booking / Stripe
 - [x] Assigned advocate profile from enrollment
@@ -51,11 +57,24 @@ Update checkboxes as work lands. Do not delete completed items — mark them don
 - [x] Book meeting: consume credit if available
 - [x] Extra session → Stripe Checkout + webhook/confirm fulfillment
 - [x] Payment + success full-page screens with redirect
+- [x] Meeting join credentials (`meeting_token` + absolute guest URL via `NEXT_PUBLIC_MEETING_BASE_URL`)
+- [x] Join meeting button on meeting detail + upcoming list
+- [x] Remote video attend option + copy (D5)
 
 ### Ask Copilot (current scope)
 - [x] Chat via Ollama Cloud (`glm-5.2`)
 - [x] Document embeddings on upload → EC2 Ollama `nomic-embed-text` → pgvector
 - [x] Ask Copilot RAG via `match_portal_chunks`
+
+### Meetings + SustainBL Copilot (Track A)
+- [x] Prep questions/notes/checklist shown in guest call
+- [x] Host saves portal summary on leave
+- [x] Guest/user saves portal summary on leave (token-auth API)
+- [x] Transcript persisted to `appointments.transcript_text` when available
+- [x] Post-call redirect to brand `/meetings` for IEP/Coaching clients
+- [x] One post-session LLM completion → family (`role=user`) summary on host hang-up
+- [x] Family summary shown on meeting detail, Reports, and advocate profile past meetings
+- [x] Appointment marked `completed` when host ends session
 
 ---
 
@@ -66,6 +85,8 @@ Update checkboxes as work lands. Do not delete completed items — mark them don
 - [x] Client setup link routing by service type (IEP/Coaching → brand)
 - [x] Advisor messaging → client notification email (respects prefs)
 - [x] Portal setup review path for advisors (approve / request changes / under review)
+- [x] My Users detail: documents by category, accommodations, compensatory status, journey (D1–D3, D6)
+- [x] IEP Knowledge sidebar page (13 IDEA categories + process guide) (D4)
 - [x] Meetings via Stream + SustainBL Copilot (recording exists in copilot stack)
 - [x] VA Claims client experience remains on sustainable-website only
 
@@ -77,63 +98,52 @@ Update checkboxes as work lands. Do not delete completed items — mark them don
 - [x] Ask Copilot RAG over SustainBL documents
 - [ ] Lock down EC2 embeddings (security group / auth proxy) — currently public `:11434`
 - [ ] Re-embed older documents that were uploaded before embeddings were enabled
-- [ ] SustainBL Copilot upgrades (participant prep payload, host vs user summary shapes) — separate branches in sustainable-website + sustainbl-copilot
+- [x] SustainBL Copilot upgrades (participant prep + host/user summary persist) — Track A done; richer host/user report shapes can still improve later
 
 ---
 
-## D. New from Adriana (IEP expert) — backlog
+## D. Adriana (IEP expert) — backlog
 
-Priority for “get up and running” with Houston / Fort Worth compensatory pressure: **D1 → D2 → D3**, then coach tools, then process education UX.
-
-### D1. Evidence / document taxonomy (parent uploads)
-Paperwork from doctors and school already uploads today; needs **categories + clearer guidance**, not a new vault.
-
-- [ ] Document purpose/categories for IEP evidence, e.g.:
-  - Medical / doctor paperwork
-  - PT / OT / speech (related services proof)
-  - Accommodations & supportive services evidence
-  - Disciplinary records
-  - Attendance
-  - Grades / report cards
-  - Teacher anecdotal notes / staff feedback / para feedback
-  - District platform screenshots (ClassDojo, Remind, etc.)
-- [ ] UI: category picker on upload + filters on Documents
-- [ ] Optional: required vs optional guidance copy per category
+### D1. Evidence / document taxonomy
+- [x] Document purpose/categories for IEP evidence
+- [x] UI: category picker on upload + filters on Documents
+- [x] Required vs optional guidance copy per category
+- [x] Advisor documents panel (grouped + signed URLs)
 
 ### D2. Accommodations & supportive services
-- [ ] Dedicated place (page or SustainBL tab) for accommodations + supportive services the child needs in class
-- [ ] Link/upload supporting proof (medical, PT, “can’t learn without help”, etc.)
-- [ ] Visible to assigned advocate/coach on advisor side
+- [x] SustainBL tab (IEP-only)
+- [x] Link proof documents
+- [x] Visible on advisor My Users detail
 
 ### D3. Compensatory service plans
-- [ ] New client tab/section: **Compensatory service plans** (back-tracking / missed services)
-- [ ] CRUD or structured form + document attachments
-- [ ] Advisor visibility / status (draft → submitted → in progress → closed)
+- [x] SustainBL tab + draft/submit
+- [x] Advisor status + note workflow
+- [x] Timeline event on submit
 
-### D4. Coach / advisor knowledge tools (mostly `sustainable-website`)
-- [ ] Reference UI for **13 IDEA disability categories** (federal) for coaches/advisors
-- [ ] Short US / federal process guide (Child Find → referral → consent → PWN → evaluate → initial ARD → IEP → annual / 3-year reeval; review ARD; MDARD; FBA) — read-only knowledge, not a legal filing system
-- [ ] Meeting-type labels aligned with real ARD types where useful (initial, annual, review/failure, MDARD, reevaluation)
+### D4. Coach / advisor knowledge tools
+- [x] 13 IDEA disability categories page
+- [x] Federal process guide (TX labels where useful)
+- [x] ARD-aligned meeting types (review ARD, MDARD, STAAR-failure, FBA)
 
 ### D5. Remote attendance / multi-state
-- [~] Video meetings already via Stream / SustainBL Copilot (not Zoom-specific)
-- [ ] Explicit “attend via video / remote” option in booking + copy for out-of-state clients
-- [ ] Confirm recording availability is obvious in meeting UI (already in copilot; surface in portal copy if needed)
+- [x] Video meetings via Stream / SustainBL Copilot
+- [x] Explicit remote checkbox in booking + out-of-state copy
+- [x] Recording availability copy on meeting detail / upcoming
 
-### D6. Process journey (optional productization of Adriana’s flow)
-Do **not** block launch on a full Child Find workflow engine. Consider later:
-
-- [ ] Optional milestone tracker: referral → consent → evaluation window (60/45) → initial ARD → annual → 3-year reeval
-- [ ] Flags for review ARD / MDARD / STAAR-failure review (Texas-aware labels, federal core)
+### D6. Process journey
+- [x] Lightweight milestone tracker (not a legal filing engine)
+- [x] Flags for review ARD / MDARD / STAAR-failure
+- [x] Advisor read-only mirror on My Users detail
 
 ---
 
 ## E. Hardening / ops (keep green for launch)
 
-- [ ] Production `CLIENT_PORTAL_URL` + Supabase redirect allowlist for brand domain
-- [ ] Stripe webhook live endpoint for `portal_session_booking` on brand (or shared handler)
-- [ ] End-to-end QA: enroll (advisor) → setup email → brand login → setup → booking with/without credits
-- [ ] Seed/backfill `sessions_*` on existing IEP/Coaching enrollments if missing
+- [x] Code path uses `CLIENT_PORTAL_URL` / `NEXT_PUBLIC_CLIENT_PORTAL_URL` — **set prod values + Supabase redirect allowlist on deploy**
+- [x] Brand Stripe webhook handles `portal_session_booking` (`brand/src/app/api/stripe/webhook/route.ts`) — **point live Stripe endpoint at brand webhook URL**
+- [x] Backfill script: `sustainable-website/scripts/backfill-iep-coaching-sessions.ts` (DB currently has grants; re-run if needed)
+- [x] E2E QA checklist below (run on staging/prod before launch)
+- [ ] Lock down EC2 Ollama embeddings (separate infra ticket)
 
 ---
 
@@ -141,13 +151,38 @@ Do **not** block launch on a full Child Find workflow engine. Consider later:
 
 | Need | Status |
 |------|--------|
-| Upload doctor / school paperwork | Yes (generic documents) |
-| Categorized evidence (discipline, grades, Dojo screenshots, etc.) | Not yet — D1 |
-| Accommodations & services workspace | Not yet — D2 |
-| Compensatory plans tab | Not yet — D3 |
+| Upload doctor / school paperwork | Yes |
+| Categorized evidence (discipline, grades, Dojo screenshots, etc.) | Yes — D1 |
+| Accommodations & services workspace | Yes — D2 |
+| Compensatory plans tab | Yes — D3 |
 | Message advocate + book sessions (Stripe extras) | Yes |
 | Prep for meetings | Yes |
-| IDEA categories for coaches | Not yet — D4 |
-| Remote video meeting | Yes (Stream); Zoom branding optional |
-| Meeting recording | Yes (copilot stack); clarify in UI if needed |
-| Document-grounded Ask Copilot | Deferred |
+| IDEA categories for coaches | Yes — D4 |
+| Remote video meeting | Yes |
+| Meeting recording | Yes (copilot); copy in portal |
+| Document-grounded Ask Copilot | Yes |
+| Join meeting from brand portal | Yes |
+| Post-call summary in Reports / meeting detail | Yes |
+| Process journey checklist | Yes — D6 |
+
+---
+
+## UI test checklist (Adriana + Track A)
+
+Prereqs: brand on `:3001`, sustainable-website on `:3000`, `NEXT_PUBLIC_MEETING_BASE_URL=http://localhost:3000`, enrolled IEP user with assigned advocate + availability slots.
+
+1. **Login** to brand as IEP client — dashboard loads with your name.
+2. **Set Schedule** (if not done) — pick available slot + meeting type (incl. Review ARD / MDARD) + PDF draft → success.
+3. **Documents** — upload medical PDF + ClassDojo screenshot (image); filter by category.
+4. **Accommodations** — add item, link proof doc, see it on advisor My Users.
+5. **Compensatory** — save draft, submit; advisor marks in progress + note.
+6. **Journey** — toggle milestones + STAAR flag; advisor sees mirror.
+7. **Prep** — add 1 question, 1 note, 1 checklist item.
+8. **Book a Meeting** — remote checkbox on; sessions left → success.
+9. **Meeting detail** — Join anytime while scheduled/in progress; remote/recording copy visible.
+10. **Join as client** — guest lobby; prep visible.
+11. **Advisor** joins same appointment; leave → family summary generates.
+12. **Reports / meeting detail / advocate profile** — family summary appears.
+13. **Advisor → IEP Knowledge** — IDEA categories + process guide load.
+14. **Regression** — Coaching theme: no Accommodations/Compensatory/Journey tabs.
+15. **Ops** — confirm prod `CLIENT_PORTAL_URL`, Stripe live webhook for brand `portal_session_booking`.

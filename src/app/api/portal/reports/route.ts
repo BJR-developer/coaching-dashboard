@@ -34,28 +34,32 @@ export async function GET() {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
-  const reports = await Promise.all(
-    appointments.map(async (appointment) => {
-      const summary = await fetchUserMeetingSummary(appointment.id, user.id);
-      const meetingType = getMeetingType(appointment.appointmentType);
-      const title =
-        appointment.purpose ||
-        meetingType?.label ||
-        appointment.appointmentType ||
-        "Meeting report";
+  const reports = (
+    await Promise.all(
+      appointments.map(async (appointment) => {
+        const summary = await fetchUserMeetingSummary(appointment.id, user.id);
+        if (!summary?.summary_markdown) return null;
 
-      return {
-        id: appointment.id,
-        date: formatReportDate(appointment.startTime),
-        name: title,
-        meeting: appointment.advisorName
-          ? `With ${appointment.advisorName}`
-          : meetingType?.label || "Meeting",
-        status: summary?.summary_markdown ? "Ready" : "No Summary Yet",
-        hasSummary: Boolean(summary?.summary_markdown),
-      };
-    }),
-  );
+        const meetingType = getMeetingType(appointment.appointmentType);
+        const title =
+          appointment.purpose ||
+          meetingType?.label ||
+          appointment.appointmentType ||
+          "Meeting report";
+
+        return {
+          id: appointment.id,
+          date: formatReportDate(appointment.startTime),
+          name: title,
+          meeting: appointment.advisorName
+            ? `With ${appointment.advisorName}`
+            : meetingType?.label || "Meeting",
+          status: "Ready",
+          hasSummary: true,
+        };
+      }),
+    )
+  ).filter((r): r is NonNullable<typeof r> => Boolean(r));
 
   return NextResponse.json({ reports });
 }

@@ -41,7 +41,7 @@ Ask Copilot retrieves via `match_portal_chunks` and grounds answers in those exc
 | `/setup/milestone` | Onboarding step 2 — meeting |
 | `/setup/documentation` | Onboarding step 3 — upload |
 | `/dashboard` | Home |
-| `/sustainbl/*` | SustainBL workspace (Timeline, Documents, Prep) |
+| `/case-file/*` | Case file workspace (Documents, Prep, IEP tabs). Old `/sustainbl/*` redirects here. |
 | `/meetings` | Meetings |
 | `/meetings/[id]` | Meeting detail |
 | `/follow-up` | Messages with assigned advocate/coach |

@@ -7,6 +7,7 @@ type Body = {
   date?: string;
   time?: string;
   purpose?: string;
+  attendRemotely?: boolean;
 };
 
 export async function POST(request: Request) {
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
       date: body.date,
       time: body.time,
       purpose: body.purpose,
+      attendRemotely: body.attendRemotely !== false,
     });
     return NextResponse.json(result, { status: result.mode === "booked" ? 201 : 200 });
   } catch (err) {

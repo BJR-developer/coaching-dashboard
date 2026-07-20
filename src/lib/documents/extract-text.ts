@@ -1,3 +1,12 @@
+/** Strip lone surrogates / control junk that can break JSON or embedding APIs. */
+function sanitizeExtractedText(text: string): string {
+  return text
+    .replace(/\\u(?![0-9a-fA-F]{4})/g, "")
+    .replace(/[\uD800-\uDFFF]/g, "")
+    .replace(/\u0000/g, "")
+    .trim();
+}
+
 export async function extractTextFromFile(
   buffer: Buffer,
   mimeType: string,
@@ -12,18 +21,23 @@ export async function extractTextFromFile(
     lower.endsWith(".md") ||
     lower.endsWith(".csv")
   ) {
-    return buffer.toString("utf8");
+    return sanitizeExtractedText(buffer.toString("utf8"));
   }
 
   if (mime.includes("pdf") || lower.endsWith(".pdf")) {
     // pdf-parse v2 exports PDFParse class (not a callable default).
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    // Some PDFs (e.g. complex Unicode / Arabic) throw — treat as no text.
     try {
-      const result = await parser.getText();
-      return (result.text || "").trim();
-    } finally {
-      await parser.destroy().catch(() => undefined);
+      const { PDFParse } = await import("pdf-parse");
+      const parser = new PDFParse({ data: new Uint8Array(buffer) });
+      try {
+        const result = await parser.getText();
+        return sanitizeExtractedText(result.text || "");
+      } finally {
+        await parser.destroy().catch(() => undefined);
+      }
+    } catch {
+      return "";
     }
   }
 

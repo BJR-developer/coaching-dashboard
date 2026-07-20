@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useState, useTransition } from "react";
-import { ChevronRight, Key } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { ChevronRight, Key, Loader2, Upload } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { useAppSession } from "@/components/auth/session-provider";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import {
   updateNotificationPreferencesAction,
   updateProfileAction,
@@ -50,6 +52,8 @@ const initialState: SettingsActionState = { ok: false };
 
 export function SettingsSection() {
   const session = useAppSession();
+  const router = useRouter();
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
   const [prefs, setPrefs] = useState<NotificationPreferences>(
     session.notificationPreferences,
@@ -58,6 +62,10 @@ export function SettingsSection() {
   const [prefsError, setPrefsError] = useState<string | null>(null);
   const [prefsPending, startPrefsTransition] = useTransition();
   const [state, formAction, pending] = useActionState(updateProfileAction, initialState);
+  const [avatarPreview, setAvatarPreview] = useState(session.avatarUrl);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [avatarPending, setAvatarPending] = useState(false);
+  const [avatarDragOver, setAvatarDragOver] = useState(false);
 
   useEffect(() => {
     if (state.ok) setEditing(false);
@@ -67,7 +75,12 @@ export function SettingsSection() {
     setPrefs(session.notificationPreferences);
   }, [session.notificationPreferences]);
 
+  useEffect(() => {
+    setAvatarPreview(session.avatarUrl);
+  }, [session.avatarUrl]);
+
   const coachLabel = session.copy.coachNavLabel.replace(/^My /, "");
+  const initial = (session.firstName || session.displayName || "?").slice(0, 1).toUpperCase();
 
   function savePref(next: NotificationPreferences) {
     setPrefs(next);
@@ -84,17 +97,35 @@ export function SettingsSection() {
     });
   }
 
+  async function uploadAvatar(file: File) {
+    setAvatarError(null);
+    setAvatarPending(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/portal/avatar", { method: "POST", body: form });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Upload failed");
+      setAvatarPreview(json.avatarUrl || null);
+      router.refresh();
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setAvatarPending(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  }
+
   return (
-    <div className="page-pad mx-auto w-full max-w-3xl space-y-12 sm:space-y-16 md:space-y-24">
-      <div className="mb-4">
-        <h1 className="font-headline text-3xl font-semibold tracking-tight text-on-surface">
-          Settings
-        </h1>
-      </div>
+    <PageShell width="narrow" className="space-y-12 sm:space-y-14">
+      <PageHeader
+        title="Settings"
+        description="Manage your profile, photo, and how we notify you."
+      />
 
       <section className="space-y-8" id="profile">
         <div className="flex items-end justify-between border-b border-outline-variant/40 pb-4">
-          <h2 className="font-headline text-2xl text-on-surface">Profile Settings</h2>
+          <h2 className="font-headline text-xl text-on-surface sm:text-2xl">Profile</h2>
           <button
             type="button"
             onClick={() => setEditing((v) => !v)}
@@ -102,6 +133,83 @@ export function SettingsSection() {
           >
             {editing ? "Cancel" : "Edit"}
           </button>
+        </div>
+
+        <div>
+          <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            Profile photo
+          </span>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void uploadAvatar(file);
+            }}
+          />
+          <div
+            onDragEnter={(e) => {
+              e.preventDefault();
+              setAvatarDragOver(true);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setAvatarDragOver(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              setAvatarDragOver(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setAvatarDragOver(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) void uploadAvatar(file);
+            }}
+            className={`flex flex-col items-center gap-4 rounded-xl border-2 border-dashed px-4 py-6 sm:flex-row sm:items-center ${
+              avatarDragOver
+                ? "border-primary bg-primary/5"
+                : "border-outline-variant/50 bg-surface-container-low"
+            }`}
+          >
+            {avatarPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarPreview}
+                alt=""
+                className="h-20 w-20 rounded-full object-cover"
+              />
+            ) : (
+              <span className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/15 text-2xl font-bold text-primary">
+                {initial}
+              </span>
+            )}
+            <div className="text-center sm:text-left">
+              <p className="text-sm text-on-surface">
+                Drag and drop a photo, or choose a file (PNG, JPG, WebP · max 5MB).
+              </p>
+              <button
+                type="button"
+                disabled={avatarPending}
+                onClick={() => avatarInputRef.current?.click()}
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-on-primary disabled:opacity-60"
+              >
+                {avatarPending ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Upload size={14} />
+                )}
+                {avatarPending ? "Uploading…" : "Upload photo"}
+              </button>
+              {avatarError ? (
+                <p className="mt-2 text-sm text-tertiary" role="alert">
+                  {avatarError}
+                </p>
+              ) : null}
+            </div>
+          </div>
         </div>
 
         {editing ? (
@@ -197,8 +305,8 @@ export function SettingsSection() {
 
       <section className="space-y-8" id="notifications">
         <div className="border-b border-outline-variant/40 pb-4">
-          <h2 className="font-headline text-2xl text-on-surface">Notification Preferences</h2>
-          <p className="mt-1 text-sm text-on-surface-variant">
+          <h2 className="font-headline text-xl text-on-surface sm:text-2xl">Notifications</h2>
+          <p className="page-lede mt-1 text-sm">
             Manage how you receive updates about your journey.
           </p>
         </div>
@@ -239,7 +347,7 @@ export function SettingsSection() {
 
       <section className="space-y-8" id="security">
         <div className="border-b border-outline-variant/40 pb-4">
-          <h2 className="font-headline text-2xl text-on-surface">Account & Security</h2>
+          <h2 className="font-headline text-xl text-on-surface sm:text-2xl">Account & security</h2>
         </div>
         <div className="space-y-2">
           <Link
@@ -255,9 +363,9 @@ export function SettingsSection() {
         </div>
       </section>
 
-      <section className="space-y-8 pb-24" id="support">
+      <section className="space-y-8 pb-16" id="support">
         <div className="border-b border-outline-variant/40 pb-4">
-          <h2 className="font-headline text-2xl text-on-surface">Support & Legal</h2>
+          <h2 className="font-headline text-xl text-on-surface sm:text-2xl">Support & legal</h2>
         </div>
         <div className="flex flex-col items-center gap-4 text-center">
           <BrandLogo href="/" size="sm" theme={session.theme} />
@@ -267,6 +375,6 @@ export function SettingsSection() {
           </p>
         </div>
       </section>
-    </div>
+    </PageShell>
   );
 }

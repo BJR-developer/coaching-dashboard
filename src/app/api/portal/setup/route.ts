@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/portal/server/auth";
 import { getProfileEmail } from "@/lib/portal/server/profile";
 import { resolveAdvisorId } from "@/lib/portal/server/advisor";
 import { insertTimelineEvent, upsertUpcomingMeetingEvent } from "@/lib/portal/server/timeline";
+import { ensureSetupAppointment } from "@/lib/portal/server/setup-appointment";
 import { getMeetingType } from "@/lib/portal/meeting-types";
 
 export async function GET() {
@@ -69,7 +70,9 @@ async function upsertSetup(request: Request) {
 
   const { data: existing } = await supabase
     .from("portal_setup")
-    .select("advisor_id, meeting_date, meeting_time, meeting_type, draft_document_id")
+    .select(
+      "advisor_id, meeting_date, meeting_time, meeting_type, draft_document_id, appointment_id",
+    )
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -150,6 +153,13 @@ async function upsertSetup(request: Request) {
       });
     }
 
+    await ensureSetupAppointment(supabase, user.id, {
+      appointment_id: saved.appointment_id,
+      advisor_id: saved.advisor_id,
+      meeting_date: meetingDate,
+      meeting_time: meetingTime,
+      meeting_type: meetingType,
+    });
   }
 
   return NextResponse.json({ setup: saved });

@@ -1,9 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Send } from "lucide-react";
 import { useAppSession } from "@/components/auth/session-provider";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import type { MessageThreadSummary, SecureMessage } from "@/lib/portal/types";
+import {
+  useMessageThreadQuery,
+  useMessagesQuery,
+  useSendMessageMutation,
+} from "@/lib/portal/query/hooks/use-messages";
+import { portalKeys } from "@/lib/portal/query/query-keys";
 
 function formatMessageTime(iso: string) {
   const d = new Date(iso);
@@ -19,94 +27,54 @@ function formatMessageTime(iso: string) {
 export function FollowUpSection() {
   const { copy } = useAppSession();
   const noun = copy.coachNoun;
-  const [threads, setThreads] = useState<MessageThreadSummary[]>([]);
+  const qc = useQueryClient();
+  const threadsQuery = useMessagesQuery();
+  const sendMutation = useSendMessageMutation();
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<SecureMessage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const loadThread = useCallback(async (threadId: string) => {
-    const res = await fetch(`/api/portal/messages/${threadId}`);
-    const json = await res.json();
-    if (!res.ok) {
-      setError(json.error || "Failed to load conversation");
-      return;
-    }
-    setMessages(json.messages || []);
-  }, []);
+  const threads = (threadsQuery.data?.threads || []) as MessageThreadSummary[];
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/portal/messages");
-        const json = await res.json();
-        if (cancelled) return;
-        if (!res.ok) {
-          setError(json.error || "Failed to load messages");
-          return;
-        }
-        const list: MessageThreadSummary[] = json.threads || [];
-        setThreads(list);
-        if (list.length > 0) {
-          setActiveThreadId(list[0].id);
-          setMessages(list[0].messages || []);
-        }
-      } catch {
-        if (!cancelled) setError("Failed to load messages");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!activeThreadId && threads.length > 0) {
+      setActiveThreadId(threads[0].id);
+    }
+  }, [threads, activeThreadId]);
+
+  const threadQuery = useMessageThreadQuery(activeThreadId);
+  const messages = (threadQuery.data?.messages || []) as SecureMessage[];
+
+  useEffect(() => {
+    if (!activeThreadId || !threadQuery.isSuccess) return;
+    qc.setQueryData(
+      portalKeys.messages(),
+      (prev: { threads?: MessageThreadSummary[] } | undefined) => {
+        if (!prev?.threads) return prev;
+        return {
+          ...prev,
+          threads: prev.threads.map((t) =>
+            t.id === activeThreadId ? { ...t, unreadCount: 0 } : t,
+          ),
+        };
+      },
+    );
+  }, [activeThreadId, threadQuery.isSuccess, qc]);
 
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  async function sendMessage() {
-    const body = draft.trim();
-    if (!body) return;
-    setSending(true);
-    setError(null);
-    try {
-      const res = activeThreadId
-        ? await fetch(`/api/portal/messages/${activeThreadId}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ body }),
-          })
-        : await fetch("/api/portal/messages", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ body }),
-          });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error || "Failed to send message");
-        return;
-      }
-      setDraft("");
-      const threadId = activeThreadId || (json.thread?.id as string | undefined);
-      if (threadId) {
-        if (!activeThreadId) setActiveThreadId(threadId);
-        await loadThread(threadId);
-      }
-    } catch {
-      setError("Failed to send message");
-    } finally {
-      setSending(false);
-    }
-  }
+  const loading = threadsQuery.isPending && !threadsQuery.data;
+  const sending = sendMutation.isPending;
+  const error =
+    localError ||
+    threadsQuery.error?.message ||
+    threadQuery.error?.message ||
+    sendMutation.error?.message ||
+    null;
 
   const activeThread = threads.find((t) => t.id === activeThreadId) || null;
   let consecutiveClient = 0;
@@ -117,18 +85,31 @@ export function FollowUpSection() {
   const atMessageLimit = consecutiveClient >= 2;
   const waitingForAdvocate = consecutiveClient > 0;
 
+  async function sendMessage() {
+    const body = draft.trim();
+    if (!body || atMessageLimit) return;
+    setLocalError(null);
+    try {
+      const json = await sendMutation.mutateAsync({
+        threadId: activeThreadId,
+        body,
+      });
+      setDraft("");
+      const threadId =
+        activeThreadId ||
+        ((json as { thread?: { id?: string } }).thread?.id as string | undefined);
+      if (threadId && !activeThreadId) setActiveThreadId(threadId);
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "Failed to send message");
+    }
+  }
+
   return (
-    <div className="page-pad mx-auto max-w-4xl pb-16 sm:pb-20">
-      <section className="mb-6 sm:mb-10">
-        <span className="font-label text-xs font-bold uppercase tracking-widest text-tertiary">
-          Messages
-        </span>
-        <h1 className="page-title mt-3 sm:mt-4">Messages</h1>
-        <p className="mt-3 max-w-2xl font-body text-base leading-relaxed text-on-surface-variant sm:mt-4 sm:text-lg">
-          Message your {noun} directly to close the loop after meetings, ask questions, or share
-          updates.
-        </p>
-      </section>
+    <PageShell width="narrow" className="pb-16 sm:pb-20">
+      <PageHeader
+        title="Messages"
+        description={`Message your ${noun} directly to close the loop after meetings, ask questions, or share updates.`}
+      />
 
       {error ? (
         <p className="mb-6 rounded-lg border border-tertiary/30 bg-tertiary/5 px-4 py-3 text-sm text-tertiary">
@@ -146,7 +127,8 @@ export function FollowUpSection() {
           <div className="flex items-center justify-between border-b border-outline-variant/30 px-4 py-4 sm:px-6 sm:py-5">
             <div>
               <p className="font-headline text-lg text-on-surface sm:text-xl">
-                {activeThread?.advisorName || `Your ${noun.charAt(0).toUpperCase()}${noun.slice(1)}`}
+                {activeThread?.advisorName ||
+                  `Your ${noun.charAt(0).toUpperCase()}${noun.slice(1)}`}
               </p>
               <p className="text-xs text-on-surface-variant">
                 {activeThread?.subject || `Message to your ${noun}`}
@@ -232,6 +214,6 @@ export function FollowUpSection() {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

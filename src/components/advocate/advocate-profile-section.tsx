@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { BadgeCheck, Loader2, Mail, MessageCircle, Phone, UserRound } from "lucide-react";
 import { useAppSession } from "@/components/auth/session-provider";
 import { AdvocateBookingPanel } from "@/components/advocate/advocate-booking-panel";
-import type { PortalAdvocate, PortalMeetingListItem } from "@/lib/portal/types";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+import { IMAGES } from "@/lib/images";
+import { formatMeetingTitle } from "@/lib/portal/meeting-types";
+import { useAdvocateQuery } from "@/lib/portal/query/hooks/use-advocate";
+import { useMeetingsQuery } from "@/lib/portal/query/hooks/use-meetings";
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -15,104 +18,84 @@ function formatDate(iso: string) {
 
 export function AdvocateProfileSection() {
   const { theme, copy } = useAppSession();
-  const [advocate, setAdvocate] = useState<PortalAdvocate | null>(null);
-  const [meetings, setMeetings] = useState<PortalMeetingListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const advocateQuery = useAdvocateQuery();
+  const meetingsQuery = useMeetingsQuery();
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [advocateRes, meetingsRes] = await Promise.all([
-          fetch("/api/portal/advocate"),
-          fetch("/api/portal/meetings"),
-        ]);
-        const advocateJson = await advocateRes.json();
-        const meetingsJson = await meetingsRes.json();
-        if (cancelled) return;
-        if (!advocateRes.ok) setError(advocateJson.error || "Failed to load advocate");
-        else setAdvocate(advocateJson.advocate ?? null);
-        if (meetingsRes.ok) setMeetings(meetingsJson.meetings || []);
-      } catch {
-        if (!cancelled) setError("Failed to load advocate");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const advocate = advocateQuery.data?.advocate ?? null;
+  const meetings = meetingsQuery.data?.meetings || [];
+  const loading =
+    (advocateQuery.isPending && !advocateQuery.data) ||
+    (meetingsQuery.isPending && !meetingsQuery.data);
+  const error = advocateQuery.error?.message || null;
 
   const roleTitle =
     advocate?.title || (theme === "iep" ? "Senior Parent Advocate" : "Certified Professional Coach");
   const firstName = advocate?.name?.split(" ")[0] || copy.coachNoun;
 
+  // Include completed meetings, plus any with a family summary once the
+  // session ends (status may still be in_progress briefly).
   const pastMeetings = meetings
-    .filter((m) => m.status === "completed" || m.status === "cancelled" || m.status === "no_show")
+    .filter(
+      (m) =>
+        m.status === "completed" ||
+        m.status === "cancelled" ||
+        m.status === "no_show" ||
+        m.hasSummary,
+    )
     .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
 
   if (loading) {
     return (
-      <div className="flex items-center gap-3 px-4 py-16 text-on-surface-variant sm:px-6 sm:py-24 lg:px-12">
+      <PageShell className="flex items-center gap-3 py-16 text-on-surface-variant">
         <Loader2 className="animate-spin" size={20} />
         Loading your advocate…
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="page-pad mx-auto max-w-6xl">
+    <PageShell>
       {error ? (
         <p className="mb-8 rounded-lg border border-tertiary/30 bg-tertiary/5 px-4 py-3 text-sm text-tertiary">
           {error}
         </p>
       ) : null}
 
-      <div className="mb-10 grid grid-cols-1 items-start gap-8 sm:mb-16 sm:gap-12 lg:grid-cols-12">
+      <div className="mb-10 grid grid-cols-1 items-start gap-8 sm:mb-12 sm:gap-12 lg:grid-cols-12">
         <div className="flex flex-col space-y-8 lg:col-span-7">
           {advocate ? (
             <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:items-start sm:gap-8 sm:text-left">
               <div className="relative shrink-0">
                 <div className="relative h-36 w-36 overflow-hidden rounded-2xl border border-outline-variant/40 bg-surface-container shadow-soft sm:h-44 sm:w-44">
-                  {advocate.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- external, unconfigured domain
-                    <img
-                      src={advocate.avatarUrl}
-                      alt={advocate.name}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src="/images/advocate-sarah.png"
-                      alt=""
-                      className="h-full w-full object-cover opacity-90"
-                    />
-                  )}
+                  {/* eslint-disable-next-line @next/next/no-img-element -- external or local portrait */}
+                  <img
+                    src={advocate.avatarUrl || IMAGES.advocatePortrait}
+                    alt={advocate.name}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (img.src.includes(IMAGES.advocatePortrait)) return;
+                      img.src = IMAGES.advocatePortrait;
+                    }}
+                  />
                 </div>
                 <div className="absolute -bottom-3 -right-3 rounded-full bg-primary p-2.5 text-on-primary shadow-soft sm:-bottom-4 sm:-right-4 sm:p-3">
                   <BadgeCheck size={18} />
                 </div>
               </div>
-              <div className="flex-1 sm:pt-4">
-                <span className="mb-2 block font-label text-xs font-bold uppercase tracking-widest text-primary">
-                  {roleTitle}
-                </span>
-                <h1 className="page-title mb-3 sm:mb-4">
-                  {advocate.name}
-                </h1>
-                {advocate.bio ? (
-                  <p className="font-body text-base italic leading-relaxed text-on-surface-variant sm:text-lg">
-                    &ldquo;{advocate.bio}&rdquo;
-                  </p>
-                ) : null}
-                <p className="mt-3 font-label text-xs uppercase tracking-widest text-on-surface-variant">
-                  {advocate.program || copy.programLabel}
-                </p>
+              <div className="flex-1 sm:pt-2">
+                <PageHeader
+                  className="mb-0 sm:mb-0"
+                  eyebrow={roleTitle}
+                  title={advocate.name}
+                  description={
+                    advocate.bio ? (
+                      <span className="italic">&ldquo;{advocate.bio}&rdquo;</span>
+                    ) : (
+                      advocate.program || copy.programLabel
+                    )
+                  }
+                />
               </div>
             </div>
           ) : (
@@ -197,7 +180,7 @@ export function AdvocateProfileSection() {
           <div className="space-y-0">
             {pastMeetings.map((meeting, index) => {
               const last = index === pastMeetings.length - 1;
-              const title = meeting.appointmentType || meeting.purpose || "Meeting";
+              const title = formatMeetingTitle(meeting.appointmentType, meeting.purpose);
               return (
                 <div key={meeting.id} className="flex">
                   <div className="mr-5 flex flex-col items-center sm:mr-8 md:mr-12">
@@ -243,6 +226,6 @@ export function AdvocateProfileSection() {
           </div>
         )}
       </section>
-    </div>
+    </PageShell>
   );
 }

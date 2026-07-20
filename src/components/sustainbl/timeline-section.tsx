@@ -33,7 +33,7 @@ export function TimelineSection() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <span className="mb-2 block text-xs font-bold uppercase tracking-widest text-primary">
-              {studentName}&apos;s SustainBL
+              {studentName}&apos;s Case file
             </span>
             <h1 className="page-title">Educational Timeline</h1>
           </div>

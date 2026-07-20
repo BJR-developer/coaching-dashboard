@@ -23,7 +23,7 @@ export const mockPriority = {
   description:
     "The annual assessment draft has been received. Review the proposed accommodations and add your notes before the meeting.",
   dueLabel: "Due in 3 days",
-  href: "/sustainbl/prep",
+  href: "/case-file/prep",
 };
 
 export const mockActivity = [

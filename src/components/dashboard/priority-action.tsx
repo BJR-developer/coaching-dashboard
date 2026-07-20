@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { ArrowRight, FileText, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { useDashboardData } from "@/lib/portal/client/use-dashboard-data";
 import { usePortalSetup } from "@/lib/portal/client/use-portal-setup";
 import {
   JourneySteps,
-  buildScheduleJourneySteps,
+  buildCaseFileJourneySteps,
 } from "@/components/portal/journey-steps";
 import { formatMeetingDateLabel } from "@/lib/portal/meeting-types";
 import { getMeetingType } from "@/lib/portal/meeting-types";
@@ -16,33 +15,22 @@ export function PriorityAction() {
   const { data, loading, error } = useDashboardData();
   const { setup } = usePortalSetup();
   const priority = data?.priority ?? null;
-  const [draftName, setDraftName] = useState<string | null>(null);
-
-  useEffect(() => {
-    const id = setup?.draft_document_id;
-    if (!id) {
-      setDraftName(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const res = await fetch(`/api/documents/${id}`);
-      const json = await res.json();
-      if (!cancelled && res.ok) setDraftName(json.name || "IEP draft");
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [setup?.draft_document_id]);
+  const progress = data?.caseProgress;
 
   const mt = getMeetingType(setup?.meeting_type);
-  const journey = buildScheduleJourneySteps({
+  const journey = buildCaseFileJourneySteps({
+    hasDocuments: progress?.hasDocuments ?? false,
+    hasIepDraft: progress?.hasIepDraft ?? Boolean(setup?.draft_document_id),
+    meetingScheduled: progress?.meetingScheduled ?? Boolean(setup?.meeting_date),
     meetingLabel: mt?.label || setup?.meeting_type,
     meetingDateLabel: setup?.meeting_date
       ? `${formatMeetingDateLabel(setup.meeting_date)}${setup.meeting_time ? ` · ${setup.meeting_time}` : ""}`
       : null,
-    hasDraft: Boolean(setup?.draft_document_id),
-    scheduled: Boolean(setup?.meeting_date && setup.status !== "draft" && setup.status !== "needs_changes"),
+    hasAccommodations: progress?.hasAccommodations ?? false,
+    hasCompensatory: progress?.hasCompensatory ?? false,
+    journeyTouched: progress?.journeyTouched ?? false,
+    hasPrep: progress?.hasPrep ?? false,
+    includeIepDomain: progress?.includeIepDomain ?? true,
   });
 
   return (
@@ -99,26 +87,6 @@ export function PriorityAction() {
           </div>
         )}
       </div>
-
-      {draftName ? (
-        <div className="flex items-start gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-low/80 p-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <FileText size={18} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
-              Submitted draft
-            </p>
-            <p className="truncate font-headline text-lg text-on-surface">{draftName}</p>
-            <Link
-              href="/sustainbl/documents"
-              className="mt-1 inline-block text-sm font-semibold text-primary hover:opacity-80"
-            >
-              View in Documents
-            </Link>
-          </div>
-        </div>
-      ) : null}
 
       <div>
         <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant/60">

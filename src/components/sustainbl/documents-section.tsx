@@ -1,22 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, Eye, Loader2, Plus, Trash2 } from "lucide-react";
 import { Icon } from "@/components/ui/icon";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { PageHeader } from "@/components/layout/page-shell";
+import { DocumentUploadDialog } from "@/components/sustainbl/document-upload-dialog";
 import { useAppSession } from "@/components/auth/session-provider";
 import { mimeLabel } from "@/lib/documents/mime-label";
+import {
+  getDocumentCategory,
+  getUploadCategories,
+  type DocumentCategoryId,
+} from "@/lib/portal/document-categories";
+import {
+  useDeleteDocumentMutation,
+  useDocumentsQuery,
+  useUploadDocumentMutation,
+  type PortalDocumentRow,
+} from "@/lib/portal/query/hooks/use-documents";
 
-type PortalDocument = {
-  id: string;
-  name: string;
-  mime_type: string | null;
-  status: string;
-  error_message: string | null;
-  byte_size: number | null;
-  created_at: string;
-  updated_at: string;
-};
+type PortalDocument = PortalDocumentRow;
 
 function statusTone(status: string): "tertiary" | "secondary" | "primary" {
   if (status === "failed") return "tertiary";
@@ -37,127 +41,108 @@ function formatDate(iso: string) {
 }
 
 export function DocumentsSection() {
-  const { displayName, copy } = useAppSession();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [documents, setDocuments] = useState<PortalDocument[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { copy, theme } = useAppSession();
+  const docsQuery = useDocumentsQuery();
+  const uploadMutation = useUploadDocumentMutation();
+  const deleteMutation = useDeleteDocumentMutation();
+  const [localError, setLocalError] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [filterPurpose, setFilterPurpose] = useState<string>("all");
 
-  const load = useCallback(async () => {
-    setError(null);
-    const res = await fetch("/api/documents");
-    const json = await res.json();
-    if (!res.ok) {
-      setError(json.error || "Failed to load documents");
-      setDocuments([]);
-      return;
-    }
-    setDocuments(json.documents || []);
-  }, []);
+  const categories = useMemo(() => getUploadCategories(), []);
+  const documents = docsQuery.data?.documents || [];
+  const loading = docsQuery.isPending && !docsQuery.data;
+  const uploading = uploadMutation.isPending;
+  const error =
+    localError ||
+    (docsQuery.error ? docsQuery.error.message : null) ||
+    (uploadMutation.error ? uploadMutation.error.message : null) ||
+    (deleteMutation.error ? deleteMutation.error.message : null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      await load();
-      if (!cancelled) setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [load]);
-
-  async function onUpload(file: File) {
-    setUploading(true);
-    setError(null);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/documents", { method: "POST", body: form });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error || "Upload failed");
-      } else if (json.warning) {
-        setError(json.warning);
-      }
-      await load();
-    } catch {
-      setError("Upload failed");
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
-    }
+  async function onUpload(file: File, purpose: DocumentCategoryId) {
+    setLocalError(null);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("purpose", purpose);
+    const json = await uploadMutation.mutateAsync(form);
+    if (json.warning) setLocalError(json.warning);
   }
 
   async function openDoc(id: string) {
     const res = await fetch(`/api/documents/${id}`);
     const json = await res.json();
     if (!res.ok || !json.url) {
-      setError(json.error || "Could not open file");
+      setLocalError(json.error || "Could not open file");
       return;
     }
     window.open(json.url, "_blank", "noopener,noreferrer");
   }
 
-  async function removeDoc(id: string) {
-    const res = await fetch(`/api/documents/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const json = await res.json();
-      setError(json.error || "Delete failed");
-      throw new Error(json.error || "Delete failed");
-    }
-    await load();
-  }
+  const filtered =
+    filterPurpose === "all"
+      ? documents
+      : documents.filter((d) => (d.purpose || "general") === filterPurpose);
 
-  const readyCount = documents.filter((d) => d.status === "ready").length;
-  const actionCount = documents.filter(
+  const readyCount = filtered.filter((d) => d.status === "ready").length;
+  const actionCount = filtered.filter(
     (d) => d.status === "failed" || d.status === "processing" || d.status === "uploaded",
   ).length;
 
   return (
     <div className="page-pad">
-      <div className="mb-8 flex flex-col gap-5 sm:mb-12 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <nav className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-on-surface-variant/60">
-            <span>{displayName}&apos;s SustainBL</span>
-            <Icon name="chevron" size={12} />
-            <span className="text-primary/80">Documents</span>
-          </nav>
-          <h1 className="page-title font-normal">SustainBL Documents</h1>
-          <p className="mt-2 text-sm text-on-surface-variant">
-            Uploads are stored securely in SustainBL for {copy.programLabel}.
-          </p>
-        </div>
-        <div>
-          <input
-            ref={inputRef}
-            type="file"
-            className="hidden"
-            accept="application/pdf,.pdf"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void onUpload(file);
-            }}
-          />
+      <PageHeader
+        title="Documents"
+        description={
+          theme === "iep"
+            ? "Upload school and medical evidence by category so your advocate can find it quickly."
+            : `Uploads are stored securely in your Case file for ${copy.programLabel}.`
+        }
+        actions={
           <button
             type="button"
-            disabled={uploading}
-            onClick={() => inputRef.current?.click()}
-            className="flex w-full items-center justify-center gap-3 rounded-lg bg-primary px-6 py-3 text-sm font-bold text-on-primary shadow-soft transition-all active:scale-95 disabled:opacity-60 sm:w-auto"
+            onClick={() => setUploadOpen(true)}
+            className="flex w-full items-center justify-center gap-3 rounded-lg bg-primary px-6 py-3 text-sm font-bold text-on-primary shadow-soft transition-all active:scale-95 sm:w-auto"
           >
-            {uploading ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
-            {uploading ? "Uploading…" : "Upload File"}
+            <Plus size={18} />
+            Upload File
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      {error ? (
+      {error && !uploadOpen ? (
         <p className="mb-6 rounded-lg border border-tertiary/30 bg-tertiary/5 px-4 py-3 text-sm text-tertiary">
           {error}
         </p>
       ) : null}
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setFilterPurpose("all")}
+          className={
+            filterPurpose === "all"
+              ? "rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-on-primary"
+              : "rounded-full bg-surface-container-low px-3 py-1.5 text-xs font-bold text-on-surface-variant hover:bg-surface-variant"
+          }
+        >
+          All
+        </button>
+        {categories.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => setFilterPurpose(c.id)}
+            className={
+              filterPurpose === c.id
+                ? "rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-on-primary"
+                : "rounded-full bg-surface-container-low px-3 py-1.5 text-xs font-bold text-on-surface-variant hover:bg-surface-variant"
+            }
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
 
       <div className="mb-10 grid grid-cols-12 gap-4 sm:mb-16 sm:gap-6">
         <div className="col-span-12 flex flex-col gap-6 rounded-xl bg-surface-container-low p-5 sm:flex-row sm:items-center sm:justify-between sm:p-8 md:col-span-8">
@@ -166,7 +151,7 @@ export function DocumentsSection() {
               <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
                 Total Files
               </p>
-              <p className="font-headline text-2xl sm:text-3xl">{documents.length}</p>
+              <p className="font-headline text-2xl sm:text-3xl">{filtered.length}</p>
             </div>
             <div>
               <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
@@ -193,9 +178,10 @@ export function DocumentsSection() {
       </div>
 
       <div className="hidden grid-cols-12 border-b border-outline-variant/30 px-6 pb-4 text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant/50 md:grid">
-        <div className="col-span-6">Document Name</div>
+        <div className="col-span-5">Document Name</div>
+        <div className="col-span-2 text-center">Category</div>
         <div className="col-span-2 text-center">Type</div>
-        <div className="col-span-2 text-center">Status</div>
+        <div className="col-span-1 text-center">Status</div>
         <div className="col-span-2 text-right">Added</div>
       </div>
 
@@ -204,23 +190,24 @@ export function DocumentsSection() {
           <Loader2 className="animate-spin" size={18} />
           Loading documents…
         </div>
-      ) : documents.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <p className="px-2 py-12 text-on-surface-variant sm:px-6">
-          No documents yet. Upload a PDF to get started.
+          No documents in this category yet. Upload a PDF to get started.
         </p>
       ) : (
-        documents.map((doc) => {
+        filtered.map((doc: PortalDocument) => {
           const tone = statusTone(doc.status);
           const toneText =
             tone === "tertiary" ? "text-tertiary" : tone === "primary" ? "text-primary" : "text-secondary";
           const toneBg =
             tone === "tertiary" ? "bg-tertiary" : tone === "primary" ? "bg-primary" : "bg-secondary";
+          const categoryLabel =
+            getDocumentCategory(doc.purpose)?.label || doc.purpose || "Other";
           return (
             <div
               key={doc.id}
               className="group relative border-b border-outline-variant/20 py-5 transition-colors hover:bg-surface-container sm:px-6 sm:py-8"
             >
-              {/* Mobile card layout */}
               <div className="flex items-start gap-4 md:hidden">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-background text-primary/40">
                   <Icon name="file-text" size={24} />
@@ -229,12 +216,7 @@ export function DocumentsSection() {
                   <h3 className="truncate font-headline text-base font-medium text-on-surface">
                     {doc.name}
                   </h3>
-                  <p className="truncate text-xs font-light italic text-on-surface-variant">
-                    {doc.error_message ||
-                      (doc.byte_size
-                        ? `${Math.max(1, Math.round(doc.byte_size / 1024))} KB`
-                        : "Stored in SustainBL")}
-                  </p>
+                  <p className="text-xs text-on-surface-variant">{categoryLabel}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-surface-variant px-2.5 py-0.5 text-[10px] font-medium text-on-surface-variant">
                       {mimeLabel(doc.mime_type, doc.name)}
@@ -245,7 +227,6 @@ export function DocumentsSection() {
                       <span className={`h-1.5 w-1.5 rounded-full ${toneBg}`} />
                       {doc.status}
                     </span>
-                    <span className="text-[10px] text-on-surface-variant/70">{formatDate(doc.created_at)}</span>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -268,9 +249,8 @@ export function DocumentsSection() {
                 </div>
               </div>
 
-              {/* Desktop table layout */}
               <div className="hidden grid-cols-12 items-center md:grid">
-                <div className="col-span-6 flex items-center gap-5">
+                <div className="col-span-5 flex items-center gap-5">
                   <div className="flex h-12 w-12 items-center justify-center rounded bg-background text-primary/40 transition-colors group-hover:text-primary">
                     <Icon name="file-text" size={28} />
                   </div>
@@ -282,16 +262,19 @@ export function DocumentsSection() {
                       {doc.error_message ||
                         (doc.byte_size
                           ? `${Math.max(1, Math.round(doc.byte_size / 1024))} KB`
-                          : "Stored in SustainBL")}
+                          : "Stored in Case file")}
                     </p>
                   </div>
+                </div>
+                <div className="col-span-2 text-center text-xs font-medium text-on-surface-variant">
+                  {categoryLabel}
                 </div>
                 <div className="col-span-2 text-center">
                   <span className="rounded-full bg-surface-variant px-3 py-1 text-xs font-medium text-on-surface-variant">
                     {mimeLabel(doc.mime_type, doc.name)}
                   </span>
                 </div>
-                <div className="col-span-2 text-center">
+                <div className="col-span-1 text-center">
                   <span
                     className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest ${toneText}`}
                   >
@@ -300,7 +283,7 @@ export function DocumentsSection() {
                   </span>
                 </div>
                 <div className="col-span-2 flex items-center justify-end gap-2 text-right text-sm text-on-surface-variant">
-                  <span className="mr-2 hidden md:inline">{formatDate(doc.created_at)}</span>
+                  <span className="mr-2 hidden lg:inline">{formatDate(doc.created_at)}</span>
                   <button
                     type="button"
                     onClick={() => void openDoc(doc.id)}
@@ -332,19 +315,26 @@ export function DocumentsSection() {
         })
       )}
 
+      <DocumentUploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        uploading={uploading}
+        onUpload={onUpload}
+      />
+
       <ConfirmDialog
         open={Boolean(deleteId)}
         onOpenChange={(next) => {
           if (!next) setDeleteId(null);
         }}
         title="Delete this document?"
-        description="This removes the file from SustainBL. This cannot be undone."
+        description="This removes the file from your Case file. This cannot be undone."
         confirmText="Delete"
         cancelText="Cancel"
         variant="destructive"
         onConfirm={async () => {
           if (!deleteId) return;
-          await removeDoc(deleteId);
+          await deleteMutation.mutateAsync(deleteId);
           setDeleteId(null);
         }}
       />

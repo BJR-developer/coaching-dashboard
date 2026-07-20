@@ -1,5 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  buildGuestMeetingLink,
+  generateMeetingToken,
+} from "@/lib/portal/meeting-link";
+import {
   consumeSessionCredit,
   getSessionBalanceForUser,
   grantExtraSession,
@@ -13,6 +17,8 @@ export type BookingRequest = {
   date: string; // YYYY-MM-DD
   time: string; // e.g. 10:30 AM
   purpose: string;
+  /** Default true — sessions are secure video / remote. */
+  attendRemotely?: boolean;
 };
 
 export type BookingResult =
@@ -72,8 +78,14 @@ async function createAppointment(params: {
   start: Date;
   end: Date;
   purpose: string;
+  attendRemotely?: boolean;
 }): Promise<string> {
   const admin = createAdminClient();
+  const meetingToken = generateMeetingToken();
+  const attendRemotely = params.attendRemotely !== false;
+  const purpose = attendRemotely
+    ? `${params.purpose} · Remote video`
+    : params.purpose;
   const { data, error } = await admin
     .from("appointments")
     .insert({
@@ -84,11 +96,16 @@ async function createAppointment(params: {
       start_time: params.start.toISOString(),
       end_time: params.end.toISOString(),
       duration_minutes: DEFAULT_DURATION_MINUTES,
-      appointment_type: "portal_booking",
+      appointment_type: "session",
       status: "scheduled",
-      purpose: params.purpose,
+      purpose,
       scheduled_by: params.userId,
-      extra_data: { source: "brand_portal" },
+      meeting_token: meetingToken,
+      meeting_link: null,
+      extra_data: {
+        source: "brand_portal",
+        attend_remotely: attendRemotely,
+      },
     })
     .select("id")
     .single();
@@ -96,6 +113,13 @@ async function createAppointment(params: {
   if (error || !data) {
     throw new Error(error?.message || "Failed to create appointment");
   }
+
+  const meetingLink = buildGuestMeetingLink(data.id as string, meetingToken);
+  await admin
+    .from("appointments")
+    .update({ meeting_link: meetingLink })
+    .eq("id", data.id);
+
   return data.id as string;
 }
 
@@ -121,6 +145,7 @@ export async function createBookingOrPaymentIntent(
   }
   const end = new Date(start.getTime() + DEFAULT_DURATION_MINUTES * 60 * 1000);
   const purpose = request.purpose.trim() || "Meeting";
+  const attendRemotely = request.attendRemotely !== false;
   const advocateName = await getAdvisorName(balance.advisorId);
 
   if (balance.sessionsRemaining > 0) {
@@ -132,6 +157,7 @@ export async function createBookingOrPaymentIntent(
       start,
       end,
       purpose,
+      attendRemotely,
     });
     const nextBalance = await consumeSessionCredit(balance.enrollmentId);
     return {
@@ -139,7 +165,7 @@ export async function createBookingOrPaymentIntent(
       appointmentId,
       startTime: start.toISOString(),
       endTime: end.toISOString(),
-      purpose,
+      purpose: attendRemotely ? `${purpose} · Remote video` : purpose,
       advocateName,
       balance: nextBalance,
     };
@@ -154,7 +180,7 @@ export async function createBookingOrPaymentIntent(
       enrollment_id: balance.enrollmentId,
       start_time: start.toISOString(),
       end_time: end.toISOString(),
-      purpose,
+      purpose: attendRemotely ? `${purpose} · Remote video` : purpose,
       status: "pending_payment",
       amount_cents: balance.extraSessionPriceCents,
     })

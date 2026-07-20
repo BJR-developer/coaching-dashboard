@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { FileText, Loader2 } from "lucide-react";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+import { useReportsQuery } from "@/lib/portal/query/hooks/use-reports";
 
 type ReportListItem = {
   id: string;
@@ -14,43 +15,17 @@ type ReportListItem = {
 };
 
 export function ReportsListSection() {
-  const [reports, setReports] = useState<ReportListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/portal/reports");
-        const json = await res.json();
-        if (cancelled) return;
-        if (!res.ok) {
-          setError(json.error || "Failed to load reports");
-          return;
-        }
-        setReports(json.reports || []);
-      } catch {
-        if (!cancelled) setError("Failed to load reports");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const reportsQuery = useReportsQuery();
+  const reports = (reportsQuery.data?.reports || []) as ReportListItem[];
+  const loading = reportsQuery.isPending && !reportsQuery.data;
+  const error = reportsQuery.error?.message || null;
 
   return (
-    <div className="page-pad mx-auto w-full max-w-6xl">
-      <div className="mb-8 sm:mb-16">
-        <h1 className="page-title mb-3 sm:mb-4">Family Reports</h1>
-        <p className="max-w-2xl font-body text-base leading-relaxed text-on-surface-variant sm:text-lg">
-          Access and export curated summaries from your meetings and preparation history.
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Reports"
+        description="Access and export curated summaries from your meetings and preparation history."
+      />
 
       {error ? (
         <p className="mb-6 rounded-lg border border-tertiary/30 bg-tertiary/5 px-4 py-3 text-sm text-tertiary">
@@ -65,8 +40,7 @@ export function ReportsListSection() {
         </div>
       ) : reports.length === 0 ? (
         <p className="rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-6 py-12 text-on-surface-variant">
-          No reports yet. Once meetings are scheduled and completed, exportable summaries will
-          appear here.
+          No reports yet. After your advocate completes a meeting summary, it will appear here.
         </p>
       ) : (
         <>
@@ -139,6 +113,6 @@ export function ReportsListSection() {
           </div>
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

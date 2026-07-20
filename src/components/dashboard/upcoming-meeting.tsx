@@ -41,6 +41,9 @@ export function UpcomingMeeting() {
             {meeting.focus ? (
               <p className="text-sm italic leading-relaxed text-on-surface-variant">{meeting.focus}</p>
             ) : null}
+            <p className="text-xs text-on-surface-variant">
+              Remote video meeting · recording may be available after the session.
+            </p>
           </>
         ) : (
           <div className="space-y-1.5">

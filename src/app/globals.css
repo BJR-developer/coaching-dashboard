@@ -242,4 +242,8 @@
   .page-title {
     @apply font-headline text-3xl leading-tight text-on-surface sm:text-4xl md:text-5xl;
   }
+
+  .page-lede {
+    @apply max-w-2xl font-body leading-relaxed text-on-surface-variant;
+  }
 }

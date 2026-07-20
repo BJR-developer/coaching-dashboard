@@ -1,12 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveServiceType } from "@/lib/auth/service-type";
 import { processPortalDocument } from "@/lib/documents/process-document";
+import {
+  isAllowedEvidenceFile,
+  isDocumentCategoryId,
+} from "@/lib/portal/document-categories";
 
 const BUCKET = "portal-documents";
 const MAX_BYTES = 50 * 1024 * 1024;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -16,11 +20,19 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
+  const purpose = request.nextUrl.searchParams.get("purpose");
+
+  let query = supabase
     .from("portal_documents")
     .select("id, name, mime_type, status, error_message, byte_size, purpose, created_at, updated_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
+
+  if (purpose && isDocumentCategoryId(purpose)) {
+    query = query.eq("purpose", purpose);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -42,19 +54,19 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const file = form.get("file");
   const purposeRaw = form.get("purpose");
-  const purpose = typeof purposeRaw === "string" && purposeRaw.trim() ? purposeRaw.trim() : "general";
+  const purpose =
+    typeof purposeRaw === "string" && purposeRaw.trim() ? purposeRaw.trim() : "general";
+
+  if (!isDocumentCategoryId(purpose)) {
+    return NextResponse.json({ error: "Invalid document category" }, { status: 400 });
+  }
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "file is required" }, { status: 400 });
   }
 
-  const isPdf =
-    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-  if (!isPdf) {
-    return NextResponse.json(
-      { error: "Only PDF files are accepted." },
-      { status: 400 },
-    );
+  if (!isAllowedEvidenceFile(file)) {
+    return NextResponse.json({ error: "Only PDF files are accepted." }, { status: 400 });
   }
 
   if (file.size <= 0 || file.size > MAX_BYTES) {
