@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Check, GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
 import { PageHeader } from "@/components/layout/page-shell";
 import type { JourneyFlags, JourneyMilestone } from "@/lib/portal/iep-journey-defaults";
 import { useJourneyMutation, useJourneyQuery } from "@/lib/portal/query/hooks/use-journey";
@@ -10,12 +9,10 @@ import { useJourneyMutation, useJourneyQuery } from "@/lib/portal/query/hooks/us
 export function JourneySection() {
   const journeyQuery = useJourneyQuery();
   const journeyMutation = useJourneyMutation();
-  const [customLabel, setCustomLabel] = useState("");
-  const [customGuidance, setCustomGuidance] = useState("");
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [dragId, setDragId] = useState<string | null>(null);
 
-  const milestones = journeyQuery.data?.journey?.milestones || [];
+  const milestones = (journeyQuery.data?.journey?.milestones || []).filter(
+    (m) => !m.custom,
+  );
   const flags = journeyQuery.data?.journey?.flags || {
     review_ard: false,
     mdard: false,
@@ -26,7 +23,10 @@ export function JourneySection() {
   const error = journeyQuery.error?.message || journeyMutation.error?.message || null;
 
   function persist(nextMilestones: JourneyMilestone[], nextFlags: JourneyFlags) {
-    journeyMutation.mutate({ milestones: nextMilestones, flags: nextFlags });
+    journeyMutation.mutate({
+      milestones: nextMilestones.filter((m) => !m.custom),
+      flags: nextFlags,
+    });
   }
 
   function toggleMilestone(id: string) {
@@ -43,35 +43,7 @@ export function JourneySection() {
   }
 
   function toggleFlag(key: keyof JourneyFlags) {
-    const next = { ...flags, [key]: !flags[key] };
-    persist(milestones, next);
-  }
-
-  function addCustom() {
-    const label = customLabel.trim();
-    if (!label) return;
-    const item: JourneyMilestone = {
-      id: `custom_${crypto.randomUUID()}`,
-      label,
-      guidance: customGuidance.trim(),
-      done: false,
-      completed_at: null,
-      custom: true,
-    };
-    persist([...milestones, item], flags);
-    setCustomLabel("");
-    setCustomGuidance("");
-  }
-
-  function moveItem(fromId: string, toId: string) {
-    if (fromId === toId) return;
-    const fromIndex = milestones.findIndex((m) => m.id === fromId);
-    const toIndex = milestones.findIndex((m) => m.id === toId);
-    if (fromIndex < 0 || toIndex < 0) return;
-    const next = [...milestones];
-    const [moved] = next.splice(fromIndex, 1);
-    next.splice(toIndex, 0, moved);
-    persist(next, flags);
+    persist(milestones, { ...flags, [key]: !flags[key] });
   }
 
   return (
@@ -80,8 +52,8 @@ export function JourneySection() {
         title="IEP process journey"
         description={
           <>
-            A shared map of where you are in the special education process. Defaults cover the
-            federal path — add custom steps or reorder if your case needs it.
+            A shared map of where you are in the special education process. Mark each
+            step as you complete it.
             {saving ? " Saving…" : null}
           </>
         }
@@ -99,107 +71,71 @@ export function JourneySection() {
         </div>
       ) : (
         <>
-          <ul className="mb-8 space-y-3">
-            {milestones.map((m) => (
-              <li
-                key={m.id}
-                draggable
-                onDragStart={() => setDragId(m.id)}
-                onDragEnd={() => setDragId(null)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  if (dragId) moveItem(dragId, m.id);
-                  setDragId(null);
-                }}
-                className={`flex items-stretch gap-2 rounded-xl border border-outline-variant/30 bg-background ${
-                  dragId === m.id ? "opacity-60" : ""
-                }`}
-              >
-                <span
-                  className="flex cursor-grab items-center px-2 text-on-surface-variant active:cursor-grabbing"
-                  aria-label="Drag to reorder"
-                  title="Drag to reorder"
-                >
-                  <GripVertical size={18} />
-                </span>
-                <button
-                  type="button"
-                  onClick={() => toggleMilestone(m.id)}
-                  className="flex min-w-0 flex-1 items-start gap-4 py-4 pr-2 text-left hover:bg-surface-container-low"
-                >
-                  <span
-                    className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-                      m.done
-                        ? "border-primary bg-primary text-on-primary"
-                        : "border-outline-variant/60"
-                    }`}
+          <ol className="mb-12 max-w-2xl">
+            {milestones.map((m, index) => {
+              const isLast = index === milestones.length - 1;
+              return (
+                <li key={m.id} className="relative flex gap-4">
+                  {/* Rail: circle + connecting line + arrow */}
+                  <div className="relative flex w-8 shrink-0 flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={() => toggleMilestone(m.id)}
+                      aria-pressed={m.done}
+                      aria-label={`${m.done ? "Unmark" : "Mark"} ${m.label}`}
+                      className={`relative z-[1] flex h-8 w-8 items-center justify-center rounded-full border-2 transition-colors ${
+                        m.done
+                          ? "border-primary bg-primary text-on-primary"
+                          : "border-outline-variant/50 bg-background text-transparent hover:border-primary/50"
+                      }`}
+                    >
+                      <Check size={14} strokeWidth={2.5} />
+                    </button>
+                    {!isLast ? (
+                      <div
+                        className="flex flex-1 flex-col items-center py-1"
+                        aria-hidden
+                      >
+                        <span
+                          className={`w-px flex-1 min-h-[1.75rem] ${
+                            m.done ? "bg-primary/35" : "bg-outline-variant/35"
+                          }`}
+                        />
+                        <ChevronDown
+                          size={14}
+                          className={
+                            m.done ? "text-primary/45" : "text-outline-variant/45"
+                          }
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <motion.button
+                    type="button"
+                    onClick={() => toggleMilestone(m.id)}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.04, duration: 0.2 }}
+                    className={`min-w-0 flex-1 text-left ${isLast ? "pb-1" : "pb-6"}`}
                   >
-                    {m.done ? <Check size={14} /> : null}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block font-headline text-lg text-on-surface">
+                    <span
+                      className={`block font-headline text-lg leading-snug ${
+                        m.done ? "text-on-surface-variant" : "text-on-surface"
+                      }`}
+                    >
                       {m.label}
-                      {m.custom ? (
-                        <span className="ml-2 text-[10px] font-bold uppercase tracking-widest text-primary">
-                          Custom
-                        </span>
-                      ) : null}
                     </span>
                     {m.guidance ? (
-                      <span className="mt-1 block text-sm text-on-surface-variant">
+                      <span className="mt-1 block text-sm leading-relaxed text-on-surface-variant">
                         {m.guidance}
                       </span>
                     ) : null}
-                  </span>
-                </button>
-                {m.custom ? (
-                  <button
-                    type="button"
-                    onClick={() => setDeleteId(m.id)}
-                    className="m-2 self-center rounded-lg p-2 text-on-surface-variant hover:bg-surface-variant"
-                    aria-label="Delete custom step"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-
-          <section className="mb-12 rounded-xl border border-outline-variant/30 bg-surface-container-low p-5">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-widest text-on-surface-variant">
-              Add custom step
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant sm:col-span-2">
-                Title
-                <input
-                  value={customLabel}
-                  onChange={(e) => setCustomLabel(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-outline-variant/40 bg-background px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-on-surface"
-                  placeholder="e.g. Independent educational evaluation"
-                />
-              </label>
-              <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant sm:col-span-2">
-                Short note (optional)
-                <input
-                  value={customGuidance}
-                  onChange={(e) => setCustomGuidance(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-outline-variant/40 bg-background px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-on-surface"
-                  placeholder="Why this step matters for your case"
-                />
-              </label>
-            </div>
-            <button
-              type="button"
-              disabled={!customLabel.trim() || saving}
-              onClick={addCustom}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-on-primary disabled:opacity-60"
-            >
-              <Plus size={16} />
-              Add step
-            </button>
-          </section>
+                  </motion.button>
+                </li>
+              );
+            })}
+          </ol>
 
           <h2 className="mb-4 text-sm font-bold uppercase tracking-widest text-on-surface-variant">
             Situation flags
@@ -231,26 +167,6 @@ export function JourneySection() {
           </div>
         </>
       )}
-
-      <ConfirmDialog
-        open={Boolean(deleteId)}
-        onOpenChange={(next) => {
-          if (!next) setDeleteId(null);
-        }}
-        title="Delete this custom step?"
-        description="Default journey steps stay. Only this custom checklist item is removed."
-        confirmText="Delete"
-        cancelText="Cancel"
-        variant="destructive"
-        onConfirm={async () => {
-          if (!deleteId) return;
-          persist(
-            milestones.filter((m) => m.id !== deleteId),
-            flags,
-          );
-          setDeleteId(null);
-        }}
-      />
     </div>
   );
 }
