@@ -9,7 +9,6 @@ const PUBLIC_AUTH_ROUTES = new Set([
   "/login",
   "/create-account",
   "/forgot-password",
-  "/update-password",
 ]);
 
 const PUBLIC_PREFIXES = ["/imgs", "/images", "/_next", "/favicon.ico", "/auth"];
