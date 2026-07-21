@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { AuthVisualPanel } from "@/components/auth/auth-visual-panel";
 import { createClient } from "@/lib/supabase/client";
 
 export function ForgotPasswordSection() {
@@ -19,16 +20,14 @@ export function ForgotPasswordSection() {
     const email = String(form.get("email") || "").trim();
 
     try {
-      const supabase = createClient();
-      const origin =
-        process.env.NEXT_PUBLIC_SITE_URL ||
-        process.env.NEXT_PUBLIC_APP_URL ||
-        window.location.origin;
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${origin.replace(/\/$/, "")}/auth/confirm?next=/update-password`,
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
-      if (resetError) {
-        setError(resetError.message);
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setError(data.error || "Could not send reset link");
         return;
       }
       setSent(true);
@@ -41,18 +40,12 @@ export function ForgotPasswordSection() {
 
   return (
     <>
-      <div className="mx-auto grid w-full max-w-5xl grid-cols-1 items-center gap-16 lg:grid-cols-12">
-        <div className="relative hidden h-[600px] overflow-hidden rounded-xl bg-surface-container-low lg:col-span-6 lg:block">
-          <div className="absolute inset-0 z-10 bg-gradient-to-tr from-surface/40 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-fixed-dim/40 via-surface-container to-secondary-container" />
-          <div className="absolute bottom-12 left-12 z-20 max-w-xs">
-            <p className="font-headline text-3xl italic leading-snug text-on-surface">
-              &ldquo;Finding your way back — one step at a time.&rdquo;
-            </p>
-          </div>
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-24">
+        <div className="hidden lg:block">
+          <AuthVisualPanel quote="Finding your way back — one step at a time." />
         </div>
 
-        <div className="flex flex-col items-center text-center lg:col-span-6 lg:items-start lg:text-left">
+        <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
           <div className="w-full max-w-md">
             <h1 className="mb-4 font-headline text-3xl leading-tight tracking-tight text-on-surface sm:text-4xl md:text-5xl lg:text-6xl">
               Reset your password
