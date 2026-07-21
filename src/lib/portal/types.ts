@@ -96,13 +96,24 @@ export type PortalCaseProgress = {
   latestStatusLabel: string;
 };
 
+export type PortalIepProfile = {
+  childName: string | null;
+  childAge: string | null;
+  gradeLevel: string | null;
+  schoolDistrict: string | null;
+  currentIepStatus: string | null;
+  primaryDisability: string | null;
+};
+
 export type PortalDashboardResponse = {
   setup: PortalSetup | null;
   meetingType: PortalMeetingTypeSummary;
   dueLabel: string | null;
   priority: PortalPriorityAction;
   upcomingMeeting: PortalUpcomingMeeting;
+  parentName: string | null;
   studentName: string | null;
+  iepProfile: PortalIepProfile | null;
   caseProgress?: PortalCaseProgress;
 };
 

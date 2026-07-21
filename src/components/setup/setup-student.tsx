@@ -11,6 +11,7 @@ import { SetupWaiting } from "@/components/setup/setup-waiting";
 import { getMeetingType } from "@/lib/portal/meeting-types";
 import { IMAGES } from "@/lib/images";
 import { useSetupMutation } from "@/lib/portal/query/hooks/use-setup";
+import { useDashboardData } from "@/lib/portal/client/use-dashboard-data";
 
 function formatMeetingDate(iso: string | null | undefined) {
   if (!iso) return null;
@@ -28,17 +29,19 @@ export function SetupStudent() {
   const router = useRouter();
   const { displayName } = useAppSession();
   const { setup, loading, error: loadError, setSetup } = usePortalSetup();
+  const { data: dashboardData } = useDashboardData();
   const setupMutation = useSetupMutation();
   const [error, setError] = useState<string | null>(null);
 
-  const welcomeName = setup?.student_name || displayName || "there";
+  const welcomeName =
+    setup?.student_name || dashboardData?.iepProfile?.childName || displayName || "there";
   const saving = setupMutation.isPending;
 
   async function handleContinue(e: FormEvent) {
     e.preventDefault();
     const name = welcomeName.trim();
     if (!name) {
-      setError("Please update your name in Settings before continuing.");
+      setError("Student name is missing. Please update it in Settings before continuing.");
       return;
     }
     setError(null);
@@ -93,8 +96,8 @@ export function SetupStudent() {
               <span className="whitespace-nowrap">{welcomeName}</span>
             </h1>
             <p className="mt-3 font-body text-sm leading-relaxed text-on-surface-variant sm:text-base">
-              Let&apos;s set your schedule for the IEP journey. We&apos;ll use your name throughout
-              — you can update it anytime in Settings.
+              Let&apos;s set your schedule for the IEP journey. We&apos;ll use your student&apos;s
+              name throughout this case file, and you can update it anytime in Settings.
             </p>
           </div>
 

@@ -13,6 +13,7 @@ import {
   type SettingsActionState,
 } from "@/lib/auth/settings-actions";
 import type { NotificationPreferences } from "@/lib/auth/notification-preferences";
+import { useDashboardData } from "@/lib/portal/client/use-dashboard-data";
 
 function Toggle({
   checked,
@@ -52,6 +53,7 @@ const initialState: SettingsActionState = { ok: false };
 
 export function SettingsSection() {
   const session = useAppSession();
+  const { data: dashboardData } = useDashboardData();
   const router = useRouter();
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
@@ -133,6 +135,50 @@ export function SettingsSection() {
           >
             {editing ? "Cancel" : "Edit"}
           </button>
+        </div>
+
+        <div className="rounded-xl border border-outline-variant/40 bg-surface-container-low p-4 sm:p-5">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            Student profile
+          </h3>
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Student name
+              </p>
+              <p className="mt-1 text-base font-medium text-on-surface">
+                {dashboardData?.iepProfile?.childName || dashboardData?.studentName || "Not set"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Grade level
+              </p>
+              <p className="mt-1 text-base font-medium text-on-surface">
+                {dashboardData?.iepProfile?.gradeLevel || "Not set"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                School district
+              </p>
+              <p className="mt-1 text-base font-medium text-on-surface">
+                {dashboardData?.iepProfile?.schoolDistrict || "Not set"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Current IEP status
+              </p>
+              <p className="mt-1 text-base font-medium text-on-surface">
+                {dashboardData?.iepProfile?.currentIepStatus || "Not set"}
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-on-surface-variant">
+            Parent account details below are for login and communication. Student fields come
+            from your IEP intake and setup.
+          </p>
         </div>
 
         <div>
