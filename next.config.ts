@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: "/sign-in",
+        destination: "/login",
+        permanent: true,
+      },
+      {
         source: "/sustainbl",
         destination: "/case-file/documents",
         permanent: false,

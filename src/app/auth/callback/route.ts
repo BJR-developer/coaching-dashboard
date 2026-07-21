@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error("[Auth Callback]", error.message);
-      return NextResponse.redirect(`${origin}/sign-in?error=auth-callback-error`);
+      return NextResponse.redirect(`${origin}/login?error=auth-callback-error`);
     }
 
     const destination = next.startsWith("/") ? next : "/dashboard";

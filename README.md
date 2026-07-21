@@ -34,7 +34,7 @@ Ask Copilot retrieves via `match_portal_chunks` and grounds answers in those exc
 
 | Path | Screen |
 |------|--------|
-| `/sign-in` | Sign in |
+| `/login` | Login |
 | `/forgot-password` | Forgot password |
 | `/update-password` | Update password |
 | `/setup` | Onboarding step 1 — welcome |

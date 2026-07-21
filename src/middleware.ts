@@ -2,11 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 /** Guest-only auth screens (redirect away if already signed in). */
-const GUEST_ONLY_ROUTES = new Set(["/sign-in", "/create-account", "/forgot-password"]);
+const GUEST_ONLY_ROUTES = new Set(["/login", "/create-account", "/forgot-password"]);
 
 /** Accessible without a prior session (confirm creates the session). */
 const PUBLIC_AUTH_ROUTES = new Set([
-  "/sign-in",
+  "/login",
   "/create-account",
   "/forgot-password",
   "/update-password",
@@ -27,7 +27,7 @@ export async function middleware(request: NextRequest) {
 
   if (!user && !isPublicPath(pathname) && pathname !== "/") {
     const url = request.nextUrl.clone();
-    url.pathname = "/sign-in";
+    url.pathname = "/login";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
@@ -41,7 +41,7 @@ export async function middleware(request: NextRequest) {
 
   if (!user && pathname === "/") {
     const url = request.nextUrl.clone();
-    url.pathname = "/sign-in";
+    url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 

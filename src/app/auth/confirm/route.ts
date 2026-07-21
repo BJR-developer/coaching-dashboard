@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get("next") ?? "/update-password";
 
   if (!token_hash || !type) {
-    return NextResponse.redirect(`${origin}/sign-in?error=invalid-confirmation`);
+    return NextResponse.redirect(`${origin}/login?error=invalid-confirmation`);
   }
 
   const supabase = await createClient();
@@ -48,6 +48,6 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.redirect(
-    `${origin}/sign-in?error=recovery-failed&reason=${encodeURIComponent(lastError ?? "unknown")}`,
+    `${origin}/login?error=recovery-failed&reason=${encodeURIComponent(lastError ?? "unknown")}`,
   );
 }

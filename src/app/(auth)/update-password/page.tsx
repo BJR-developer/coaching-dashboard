@@ -5,7 +5,7 @@ import { UpdatePasswordSection } from "@/components/auth/update-password-section
 export default function UpdatePasswordPage() {
   return (
     <>
-      <AuthHeader showClose closeHref="/sign-in" />
+      <AuthHeader showClose closeHref="/login" />
       <main className="flex flex-grow items-center justify-center px-4 py-10 sm:px-6 sm:py-12">
         <UpdatePasswordSection />
       </main>

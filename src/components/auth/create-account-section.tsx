@@ -23,7 +23,7 @@ export function CreateAccountSection() {
         className="order-2 flex flex-col items-start space-y-8 lg:order-1 lg:space-y-10"
       >
         <header className="space-y-4">
-          <BrandLogo href="/sign-in" size="md" priority />
+          <BrandLogo href="/login" size="md" priority />
           <h1 className="font-display text-4xl leading-[1.1] tracking-tight text-on-surface sm:text-5xl md:text-7xl">
             Create account
           </h1>
@@ -151,7 +151,7 @@ export function CreateAccountSection() {
           {state?.success ? (
             <p className="font-body text-sm text-primary" role="status">
               {state.success}{" "}
-              <Link href="/sign-in" className="font-bold underline">
+              <Link href="/login" className="font-bold underline">
                 Sign in
               </Link>
             </p>
@@ -167,7 +167,7 @@ export function CreateAccountSection() {
             </button>
             <div className="flex items-center justify-center space-x-2 font-body text-sm text-on-surface-variant">
               <span>Already have an account?</span>
-              <Link href="/sign-in" className="font-bold text-primary transition-all hover:underline">
+              <Link href="/login" className="font-bold text-primary transition-all hover:underline">
                 Sign in
               </Link>
             </div>

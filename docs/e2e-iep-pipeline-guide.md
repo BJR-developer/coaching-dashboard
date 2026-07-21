@@ -174,7 +174,7 @@ flowchart LR
 |---|--------|-----|---------|
 | D1 | Open setup link from email | `{portal}/auth/confirm?token_hash=…&type=recovery&next=/update-password` | Session established |
 | D2 | Set password | http://localhost:3001/update-password | Password saves |
-| D3 | Sign in | http://localhost:3001/sign-in | Lands on `/dashboard` |
+| D3 | Login | http://localhost:3001/login | Lands on `/dashboard` |
 
 **If email is unavailable locally:** copy the link from Resend logs / server logs, or generate via advisor **Reset password** on My Users detail after first enroll.
 
@@ -351,7 +351,7 @@ Use this order so each phase unlocks the next:
 
 | Page | URL |
 |------|-----|
-| Sign in | `/sign-in` |
+| Login | `/login` |
 | Dashboard | `/dashboard` |
 | Setup | `/setup` → `/setup/milestone` → `/setup/documentation` |
 | Documents | `/case-file/documents` |

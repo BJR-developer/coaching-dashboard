@@ -95,10 +95,10 @@ export function ForgotPasswordSection() {
             <div className="mt-10 flex items-center justify-center gap-2 lg:justify-start">
               <ArrowLeft size={14} className="text-on-surface-variant" />
               <Link
-                href="/sign-in"
+                href="/login"
                 className="font-body text-sm text-on-surface-variant underline underline-offset-4 transition-colors hover:text-primary"
               >
-                Back to sign-in
+                Back to login
               </Link>
             </div>
           </div>
@@ -125,10 +125,10 @@ export function ForgotPasswordSection() {
                 If an account exists for that address, we sent a password reset link.
               </p>
               <Link
-                href="/sign-in"
+                href="/login"
                 className="mt-8 inline-flex rounded-lg bg-primary px-6 py-3 font-semibold text-on-primary"
               >
-                Back to sign-in
+                Back to login
               </Link>
             </motion.div>
           </motion.div>

@@ -7,7 +7,7 @@ type AuthHeaderProps = {
   closeHref?: string;
 };
 
-export function AuthHeader({ showClose = false, closeHref = "/sign-in" }: AuthHeaderProps) {
+export function AuthHeader({ showClose = false, closeHref = "/login" }: AuthHeaderProps) {
   return (
     <header className="sticky top-0 z-50 bg-surface">
       <nav className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-5 sm:px-8 sm:py-6">
