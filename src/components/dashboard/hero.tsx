@@ -7,7 +7,7 @@ import { useDashboardData } from "@/lib/portal/client/use-dashboard-data";
 export function DashboardHero() {
   const { displayName } = useAppSession();
   const { data } = useDashboardData();
-  const studentName = data?.studentName || null;
+  const studentName = data?.iepProfile?.childName || data?.studentName || null;
 
   return (
     <PageHeader

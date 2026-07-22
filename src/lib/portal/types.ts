@@ -77,10 +77,16 @@ export type PortalPriorityAction = {
 export type PortalUpcomingMeeting =
   | {
       meetingDate: string;
+      /** ISO timestamp — preferred source for countdown when available. */
+      startsAt?: string | null;
       dateLabel: string;
       meetingType: string | null;
       focus: string | null;
       studentName: string | null;
+      appointmentId?: string | null;
+      copilotJoinUrl?: string | null;
+      thirdPartyJoinUrl?: string | null;
+      thirdPartyLabel?: "zoom" | "meet" | "other" | null;
     }
   | "still_not_set";
 
@@ -96,13 +102,32 @@ export type PortalCaseProgress = {
   latestStatusLabel: string;
 };
 
+export type PortalIepProfile = {
+  childName: string | null;
+  childAge: string | null;
+  gradeLevel: string | null;
+  schoolDistrict: string | null;
+  currentIepStatus: string | null;
+  primaryDisability: string | null;
+  secondaryDisabilities: string | null;
+  currentChallenges: string | null;
+  iepGoals: string | null;
+  servicesReceived: string | null;
+  accommodationsNeeded: string | null;
+  behavioralConcerns: string | null;
+  parentConcerns: string | null;
+  additionalInfo: string | null;
+};
+
 export type PortalDashboardResponse = {
   setup: PortalSetup | null;
   meetingType: PortalMeetingTypeSummary;
   dueLabel: string | null;
   priority: PortalPriorityAction;
   upcomingMeeting: PortalUpcomingMeeting;
+  parentName: string | null;
   studentName: string | null;
+  iepProfile: PortalIepProfile | null;
   caseProgress?: PortalCaseProgress;
 };
 
@@ -125,6 +150,8 @@ export type PortalMeeting = {
   appointmentType: string | null;
   status: string;
   meetingLink: string | null;
+  thirdPartyJoinUrl?: string | null;
+  thirdPartyLabel?: "zoom" | "meet" | "other" | null;
   meetingCode: string | null;
   purpose: string | null;
   cancellationReason: string | null;
